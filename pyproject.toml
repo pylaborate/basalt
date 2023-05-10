@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+
+[project]
+name = "pylaborate-basalt"
+description = "Pylaborate Project tools"
+authors = [{name = "Sean Champ", email = "spchamp@users.noreply.github.com"}]
+readme = "README.md"
+license = {file = "COPYING"}
+classifiers = ["License :: OSI Approved :: MIT License",
+                "Private :: Do not Upload"
+                ]
+version = "1.0.0"
+dependencies = ["paver"]
+
+[project.urls]
+Home = "https://example.com/fixme-not-a-real-homepage"
+
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "ipython",
+    "mypy",
+    "pip-tools",
+    "pytest"
+]
+
+[tool.setuptools]
+packages = ["pylaborate.basalt"]
+package-dir = {"" = "src"}
+
