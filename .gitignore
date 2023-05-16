@@ -88,3 +88,7 @@ __pycache__
 *.pyproject.user.*
 requirements.local
 requirements.txt
+
+*.code-workspace
+/attic
+paver-minilib.zip
