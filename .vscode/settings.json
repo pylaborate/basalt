@@ -1,45 +1,40 @@
 {
-    "files.exclude": {
-        ".kdev4/": true,
-        "**/__pycache__": true,
-        "**/*.egg-info": true,
-        "**/*.dist-info": true,
-        "**/.#*": true,
-        "**/*#": true,
-        "**/*~": true,
-        "**/.*": true,
-        "**/.vscode": false,
-        "**/**.bak": true,
-        "**/*.pyproject": true,
-        "**/*.pyproject.user": true,
-        "**/*.pyproject.user.*": true,
-        "**/*.kdev4" : true
-    },
-    "python.venvPath": "${workspaceFolder}/.environments",
-    "python.linting.flake8Enabled": true,
-    "python.linting.flake8Args": [
-        "--ignore-errors",
-        "E251,E266,E302,E401,E501"
-    ],
-    "evenBetterToml.formatter.allowedBlankLines": 2,
-    "evenBetterToml.formatter.columnWidth": 72,
-    "security.workspace.trust.untrustedFiles": "open",
-  "openInExternalApp.openMapper": [
-    
-    {
-      "extensionName": "ui",
-      "apps": [
-        {
-          "title": "pyside6-designer",
-          "openCommand": "pyside6-designer"
-        },
-        {
-          "title": "designer6",
-          "openCommand": "designer6",
-          // "args": ["..."]
-        }
-      ]
-    }
+  "files.exclude": {
+    ".kdev4/": true,
+    "**/__pycache__": true,
+    "**/*.egg-info": true,
+    "**/*.dist-info": true,
+    "**/.#*": true,
+    "**/*#": true,
+    "**/*~": true,
+    "**/.*": true,
+    "**/.vscode": false,
+    "**/**.bak": true,
+    "**/*.pyproject": true,
+    "**/*.pyproject.user": true,
+    "**/*.pyproject.user.*": true,
+    "**/*.kdev4": true
+  },
+  "python.venvPath": "${workspaceFolder}/.environments",
+  "python.testing.pytestArgs": [
+    "tests"
   ],
-  "editor.tabSize": 8,
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "python.defaultInterpreterPath": "python3",
+  "python.formatting.provider": "black",
+  "python.linting.enabled": true,
+  "python.linting.flake8Enabled": true,
+  "python.linting.flake8Args": [
+    "--ignore=E251,E266,E302,E401,E501,F403"
+  ],
+  "evenBetterToml.formatter.allowedBlankLines": 2,
+  "evenBetterToml.formatter.columnWidth": 72,
+  "python.linting.flake8CategorySeverity.F": "Warning",
+  "makefile.makefilePath": "GNUmakefile",
+  "makefile.makePath": "gmake",
+  "editor.tabSize": 4,
+  "[makefile]": {
+    "editor.tabSize": 8
+  },
 }

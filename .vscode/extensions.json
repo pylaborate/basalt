@@ -1,6 +1,6 @@
 {
     "recommendations": [
         "tamasfe.even-better-toml",
-        "yutengjing.open-in-external-app"
+        "ms-vscode.makefile-tools"
     ]
 }
