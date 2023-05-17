@@ -1,71 +1,70 @@
 ## Makefile (GNU Make)
 
-SETENV?=	env
-HOST_PYTHON?=	python3
-PY_VERSION?=	$(shell V=$$(${PYTHON} --version); V=$${V#Python }; echo $${V%.*})
+SHELL=		bash
 
-ENV_DIR?=  	${CURDIR}/env
-ENV_CFG=	${ENV_DIR}/pyvenv.cfg
+PROJECT_DIR?=	${CURDIR}
+ENV_DIR?=	${PROJECT_DIR}/env
 
-INSTALL_ENV?=	${CURDIR}/install_env.py
+APIDOC_DIR?=	${SITE_DIR}/api
+SRC_DIR?=	${PROJECT_DIR}/src
 
-PIP_REQ?=	requirements.txt
-LOCAL_REQ?=	requirements.local
+BUILD_DIR?=	${CURDIR}/build
+SITE_DIR?=	${BUILD_DIR}/site
+STAMP_DIR=	${BUILD_DIR}/.mkdone
 
-## shell scripts and shell commands
-SOURCE?=		.
-ACTIVATE?=		${SOURCE} ${ENV_DIR}/bin/activate;
+TOP_PACKAGES?=	pylaborate.basalt pylaborate.libpy_staging
 
-ENV_CMD_PYTHON?=	${ENV_DIR}/bin/python3
-ENV_PYTHON?=		${ACTIVATE} ${ENV_CMD_PYTHON}
+PDOC3_CFGOPT?=	show_source_code=False
+PDOC3_OPT?=	--html --output-dir ${APIDOC_DIR} $(foreach C,${PDOC3_CFGOPT},--config "${C}")
+PDOC_BIN?=	${ENV_DIR}/bin/pdoc3
 
-ENV_CMD_PIP?=		${ENV_DIR}/bin/pip
-ENV_PIP?=		${ACTIVATE} ${ENV_CMD_PIP}
+PYTEST_BIN?=	${ENV_DIR}/bin/pytest
 
-ENV_CMD_PIP_COMPILE?=	${ENV_DIR}/bin/pip-compile
-ENV_PIP_COMPILE?=	${ACTIVATE} ${ENV_CMD_PIP_COMPILE}
+CLEAN_DIRS?=	${SITE_DIR} ${STAMP_DIR}
 
-ENV_CMD_PIP_SYNC?=	${ENV_DIR}/bin/pip-sync
-ENV_PIP_SYNC?=		${ACTIVATE} ${ENV_CMD_PIP_SYNC}
+RUN?=		@set -x;
 
-## options for shell scripts
-PIP_OPTIONS?=		--no-build-isolation -v
-## options for invoking pip-compile
-PIP_COMPILE_OPTIONS?=	--resolver=backtracking -v --extra dev --pip-args "${PIP_OPTIONS}"
-## options for invoking pip-sync
-PIP_SYNC_OPTIONS?=	-v --ask --pip-args "${PIP_OPTIONS}"
+STAMP_TGTS+=	docs test
 
+pkg_sources=	$(wildcard ${SRC_DIR}/$(subst .,/,${1})/*.py \
+			${SRC_DIR}/$(subst .,/,${1})/*/*.py \
+			${SRC_DIR}/$(subst .,/,${1})/*/*/*.py)
+
+PY_SOURCES=	$(foreach P,${TOP_PACKAGES},$(call pkg_sources,${P}))
+
+## define the all tgt before including env.mk
 all: pip-install
 
-env: ${ENV_CFG}
+## include stamp.mk before defining stamp tgts
+include stamp.mk
+include env.mk
 
-req-update: ${PIP_REQ}
+${PDOC_BIN}:
+	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
 
-sync: ${PIP_REQ} piptools-sync
+${PYTEST_BIN}:
+	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
 
-pip-install: ${PIP_REQ} ${ENV_CMD_PIP}
-	${ENV_PIP} install ${PIP_OPTIONS} -r ${PIP_REQ}
+## to re-build docs, run 'gmake cleandocs docs'
+${docs_stamp}: ${PDOC_BIN} ${PY_SOURCES}
+	${RUN} for PKG in ${TOP_PACKAGES}; do echo "# -- building docs for $${PKG}"; \
+		${ACTIVATE} ${PDOC_BIN} ${PDOC3_OPT} $${PKG}; done
+	$(call mkstamp_sh,$@)
 
-pip-upgrade: ${PIP_REQ} ${ENV_CMD_PIP}
-	${ENV_PIP} install ${PIP_OPTIONS} --upgrade -r ${PIP_REQ}
+## to re-run tests, run 'gmake test-clean test'
+${test_stamp}: ${PYTEST_BIN} ${PY_SOURCES}
+	${ACTIVATE} ${PYTEST_BIN}
+	$(call mkstamp_sh,$@)
 
-piptools-sync: ${PIP_REQ} ${ENV_CMD_PIP_SYNC}
-	${ENV_PIP_SYNC} ${PIP_SYNC_OPTIONS}
+## docs-clean is a tgt defined in stamp.mk
+cleandocs: docs-clean
+	rm -f ${docs_stamp}
+	if [ ! -e ${SITE_DIR} ]; then exit; fi; \
+		find ${SITE_DIR} -maxdepth 1 -mindepth 1 -exec rm -rf {} +
 
-${ENV_CFG}: ${INSTALL_ENV}
-	if ! [ -e ${ENV_CFG} ]; then \
-		${HOST_PYTHON} ${INSTALL_ENV} ${ENV_DIR}; \
-	fi
+clean: cleandocs
+	rm -f ${all_mk_stamps}
+	for D in ${CLEAN_DIRS}; do if [ -e $${D} ]; then rmdir $${D}; fi; done
 
-${ENV_CMD_PIP}: ${ENV_CFG}
+.PHONY: all test cleandocs ${STAMP_TGTS}
 
-${ENV_CMD_PIP_COMPILE}: ${ENV_CFG}
-	${ENV_PIP} install ${PIP_OPTIONS} pip-tools
-
-${ENV_CMD_PIP_SYNC}: ${ENV_CMD_PIP_COMPILE}
-
-${PIP_REQ}: ${ENV_CMD_PIP_COMPILE} pyproject.toml
-	if [ -e ${LOCAL_REQ} ]; then EXTRA_REQ='${EXTRA_REQ} ${LOCAL_REQ}'; fi; \
-		${ENV_PIP_COMPILE} ${PIP_COMPILE_OPTIONS} -o ${PIP_REQ} pyproject.toml $${EXTRA_REQ}
-
-.PHONY:	all env req-update pip-install pip-upgrade sync piptools-sync

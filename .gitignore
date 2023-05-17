@@ -77,10 +77,13 @@ __pycache__
 *.log
 *.bak
 
+.Trash-*
+
 /.settings
 *.kdev4
 /.spyproject
 /*env*
+!env.mk
 *.egg-info/
 *.dist-info/
 
@@ -92,3 +95,5 @@ requirements.txt
 *.code-workspace
 /attic
 paver-minilib.zip
+/build
+/site
