@@ -26,7 +26,7 @@
   "python.linting.enabled": true,
   "python.linting.flake8Enabled": true,
   "python.linting.flake8Args": [
-    "--ignore=E251,E266,E302,E401,E501,F403"
+    "--ignore=E251,E261,E266,E302,E401,E501,F403"
   ],
   "evenBetterToml.formatter.allowedBlankLines": 2,
   "evenBetterToml.formatter.columnWidth": 72,

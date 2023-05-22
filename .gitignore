@@ -97,3 +97,4 @@ requirements.txt
 paver-minilib.zip
 /build
 /site
+/.mypy_cache

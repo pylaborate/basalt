@@ -12,7 +12,7 @@ BUILD_DIR?=	${CURDIR}/build
 SITE_DIR?=	${BUILD_DIR}/site
 STAMP_DIR=	${BUILD_DIR}/.mkdone
 
-TOP_PACKAGES?=	pylaborate.basalt pylaborate.libpy_staging
+TOP_PACKAGES?=	pylaborate.basalt pylaborate.common_staging
 
 PDOC3_CFGOPT?=	show_source_code=False
 PDOC3_OPT?=	--html --output-dir ${APIDOC_DIR} $(foreach C,${PDOC3_CFGOPT},--config "${C}")
