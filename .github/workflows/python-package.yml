@@ -31,6 +31,7 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
+        case "${{ matrix.os }}" in macos*) brew install make ;; esac
         gmake pip-install
     - name: Lint with flake8
       run: |
