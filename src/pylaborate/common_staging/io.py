@@ -1,6 +1,6 @@
 # pyalborate.common.io (staging)
 
-from .funlib import export
+from .naming import export
 from .classlib import ContextManager
 
 from dataclasses import dataclass

@@ -6,6 +6,7 @@ ENV_DIR?=	env
 
 APIDOC_DIR?=	${SITE_DIR}/api
 SRC_DIR?=	src
+TEST_DIR?=	test
 
 BUILD_DIR?=	build
 SITE_DIR?=	${BUILD_DIR}/site
@@ -20,7 +21,7 @@ CLEAN_DIRS?=	${SITE_DIR} ${STAMP_DIR}
 
 RUN?=		@set -x;
 
-STAMP_TGTS+=	docs lint test
+STAMP_TGTS+=	docs-run lint-ci test-run
 
 py_sources=	$(wildcard ${1}/*.py ${1}/*/*.py ${1}/*/*/*.py)
 
@@ -39,30 +40,34 @@ include env.mk
 
 
 ## to re-build docs, run 'gmake cleandocs docs'
-${docs_stamp}: ${ENV_CMD_pdoc3} ${PDOC_BIN} ${PY_SOURCES}
+${docs-run_stamp}: ${ENV_CMD_pdoc3} ${PDOC_BIN} ${PY_SOURCES}
 	${RUN} for PKG in ${TOP_PACKAGES}; do echo "# -- building docs for $${PKG}"; \
 		${ENV_CMD_pdoc3} ${PDOC3_OPT} $${PKG}; done
 	$(call mkstamp_sh,$@)
 
 ## to re-run tests, run 'gmake test-clean test'
-${test_stamp}: ${ENV_CMD_pytest} ${PY_SOURCES}
-	${ENV_CMD_pytest}
+${test-run_stamp}: ${ENV_CMD_pytest} ${PY_SOURCES}
+	${ENV_CMD_pytest} ${TEST_DIR}
 	$(call mkstamp_sh,$@)
 
-${lint_stamp}: ${ENV_CMD_flake8} ${PY_SOURCES}
+${lint-ci_stamp}: ${ENV_CMD_flake8} ${PY_SOURCES}
 # 	fail on syntax errors, undefined names
 	${ENV_CMD_flake8} --count --select=E9,F63,F7,F82 --show-source --statistics ${PY_SOURCEDIRS}
 	$(call mkstamp_sh,$@)
 
 ## docs-clean is a tgt defined in stamp.mk
-cleandocs: docs-clean
+cleandocs: docs-run-clean
 	rm -f ${docs_stamp}
 	if [ ! -e ${SITE_DIR} ]; then exit; fi; \
 		find ${SITE_DIR} -maxdepth 1 -mindepth 1 -exec rm -rf {} +
+
+docs: cleandocs docs-run
+
+test: test-run-clean test-run
 
 clean: cleandocs
 	rm -f ${all_mk_stamps}
 	for D in ${CLEAN_DIRS}; do if [ -e $${D} ]; then rmdir $${D}; fi; done
 
-.PHONY: all test cleandocs ${STAMP_TGTS}
+.PHONY: all cleandocs docs test clean ${STAMP_TGTS}
 

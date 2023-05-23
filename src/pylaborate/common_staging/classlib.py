@@ -1,5 +1,5 @@
 
-from .funlib import export
+from .naming import export
 from enum import IntFlag
 from typing import Callable, Literal, Optional, Type
 

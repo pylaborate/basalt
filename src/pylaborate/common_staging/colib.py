@@ -1,6 +1,6 @@
 # utility forms for collections and sequences
 
-from .funlib import export
+from .naming import export
 from typing import Any, List, Callable, Collection, Generator, Hashable, TypeVar
 
 H = TypeVar('H', bound=Hashable)

@@ -1,10 +1,6 @@
 # This workflow will install Python dependencies, run tests and lint with a variety of Python versions
 # For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
 
-# referenced onto
-# https://github.com/paver/paver/blob/master/.github/workflows/tests.yml
-# with local adaptations
-
 name: Python package
 
 on:
@@ -33,9 +29,9 @@ jobs:
       run: |
         bash -c 'case "${{ matrix.os }}" in macos*) brew install make ;; esac'
         gmake pip-install
-    - name: Lint with flake8
+    - name: Lint (CI) with flake8
       run: |
-        gmake lint
+        gmake lint-ci
     - name: Test with pytest
       run: |
         gmake test

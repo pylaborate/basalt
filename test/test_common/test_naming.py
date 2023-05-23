@@ -1,6 +1,6 @@
-## tests for pylaborate.common_staging.funlib
+## tests for pylaborate.common_staging.naming
 
-import pylaborate.common_staging.funlib as subject
+import pylaborate.common_staging.naming as subject
 
 from assertpy import assert_that
 from pytest import mark

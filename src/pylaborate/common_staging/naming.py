@@ -1,4 +1,4 @@
-# pyalborate.common.funlib (staging)
+# pyalborate.common.naming (staging)
 
 import sys
 from types import ModuleType
@@ -6,6 +6,8 @@ from typing import Generator, List, Sequence, TypeVar
 
 
 class NameError(LookupError):
+    """Exception class for `LookupError` generalized to an object name"""
+
     pass
 
 
@@ -26,7 +28,7 @@ def get_module(ident: str | ModuleType) -> ModuleType:
         if ident in sys.modules:
             return sys.modules[ident]
         else:
-            raise NameError(f"Module not found for name: {ident!r}")
+            raise NameError(f"Module not found for name: {ident!r}", ident)
     else:
         return ident
 
@@ -41,7 +43,7 @@ def _name_gen(objects: Sequence) -> Generator[str, None, None]:
         elif hasattr(o, "__name__"):
             yield o.__name__
         else:
-            raise NameError(f"Unable to determine name for {o!r}")
+            raise NameError(f"Unable to determine name for {o!r}", o)
 
 
 def export(module: str | ModuleType, cache: List[str], obj, *objects) -> List[str]:
@@ -122,12 +124,14 @@ def export(module: str | ModuleType, cache: List[str], obj, *objects) -> List[st
     """
     m = get_module(module)
     if not isinstance(cache, List):
-        raise ValueError(f"In export for {module!r}, not a list: {cache!r}")
+        raise ValueError(f"In export for {m!r}, not a list: {cache!r}", m, cache)
     try:
+        # fmt: off
         ext = _name_gen((obj, *objects,))
+        # fmt: on
         cache.extend(ext)
     except NameError as exc:
-        raise ValueError(f"Unable to export symbols from {module!r}") from exc
+        raise ValueError(f"Unable to export symbols from {m!r}", m) from exc
     m.__all__ = cache
     return cache
 
