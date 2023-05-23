@@ -32,10 +32,10 @@ jobs:
     - name: Install dependencies
       run: |
         bash -c 'case "${{ matrix.os }}" in macos*) brew install make ;; esac'
-        bash -c 'gmake pip-install'
+        gmake pip-install
     - name: Lint with flake8
       run: |
-        bash -c 'gmake lint'
+        gmake lint
     - name: Test with pytest
       run: |
-        bash -c 'gmake test'
+        gmake test
