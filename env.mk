@@ -14,11 +14,7 @@ HOST_PYTHON?=	python3
 RUNNER_OS?=	$(shell uname -o)
 
 ## virtual environment dir for tasks
-ifeq (${RUNNER_OS},Windows)
-ENV_DIR?=	$(shell cygpath ${CURDIR}/env)
-else
-ENV_DIR?=	${CURDIR}/env
-endif
+ENV_DIR?=	env
 ## common file for virtual enviornmentso
 ENV_CFG=	${ENV_DIR}/pyvenv.cfg
 
@@ -36,7 +32,7 @@ REQ_DEPENDS=	${PROJECT_CFG} ${ADDL_REQ} ${LOCAL_REQ}
 
 ## utility script for virtual environment installation,
 ## does not install virtualenv in ${ENV_DIR}
-INSTALL_ENV?=	${CURDIR}/install_env.py
+INSTALL_ENV?=	install_env.py
 
 ## optional features for the project config, used with pip-compile
 PYPROJECT_EXTRAS?=	dev

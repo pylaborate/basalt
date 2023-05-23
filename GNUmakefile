@@ -2,13 +2,12 @@
 
 SHELL=		bash
 
-PROJECT_DIR?=	${CURDIR}
-ENV_DIR?=	${PROJECT_DIR}/env
+ENV_DIR?=	env
 
 APIDOC_DIR?=	${SITE_DIR}/api
-SRC_DIR?=	${PROJECT_DIR}/src
+SRC_DIR?=	src
 
-BUILD_DIR?=	${CURDIR}/build
+BUILD_DIR?=	build
 SITE_DIR?=	${BUILD_DIR}/site
 STAMP_DIR=	${BUILD_DIR}/.mkdone
 

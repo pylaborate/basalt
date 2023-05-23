@@ -84,7 +84,7 @@
 ## - designed for application with GNU Make, for portability with
 ##   common development tools in popular Linux distributions
 
-STAMP_DIR?=	${CURDIR}/.mkdone
+STAMP_DIR?=	.mkdone
 STAMP_TGTS?=
 
 mkstamp_sh?=	mkdir -p $(dir $(1)) && touch $(1)
