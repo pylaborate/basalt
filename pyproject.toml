@@ -31,6 +31,8 @@ dev = [
     "ipython",
     "pip-tools",
     "pytest",
+    "assertpy",
+    "pytest-dependency",
     "black",
     "pydocstyle",
     "flake8",
