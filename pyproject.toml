@@ -36,7 +36,8 @@ dev = [
     "flake8",
     "pdoc3",
     "jinja2 >= 3.0",
-    "tomlkit"
+    "tomlkit",
+    "pipenv"
 ]
 
 [tool.setuptools.packages.find]

@@ -37,15 +37,14 @@ PYPROJECT_EXTRAS?=	dev
 ## shell scripts for tasks
 ##
 
-SOURCE?=		.
-ACTIVATE?=		${SOURCE} ${ENV_DIR}/bin/activate;
+ACTIVATE?=		${ENV_DIR}/bin/pipenv run
 
 ifndef ENV_CMD_template
 define ENV_CMD_template=
 ifndef ENV_CMD_$(1)
 PYPI_$(1)?=		$(1)
 ENV_CMD_$(1)?=		$${ENV_DIR}/bin/$(1)
-ENV_$(1)?=		$${ACTIVATE} $${ENV_CMD_$(1)}
+ENV_$(1)?=		$${ENV_CMD_$(1)}
 ENV_REQ_$(1)?=		$${ENV_CFG}
 
 $${ENV_CMD_$(1)}:	$${ENV_REQ_$(1)}
@@ -58,10 +57,10 @@ endef ## ENV_CMD_template end
 endif
 
 ## tools to be used under virutal env, in targets defined below
-PYPI_pip-compile=	pip-tools
-ENV_BIN?=	python3 pip-compile pip-sync
-override 	ENV_REQ_pip-sync=${ENV_CMD_pip-compile}
+ENV_BIN?=	python3 pip-compile pip-sync pipenv
 
+PYPI_pip-compile=	pip-tools
+ENV_REQ_pip-sync=	${ENV_CMD_pip-compile}
 
 ## define variables for each tool to be used under virtual env
 $(foreach BIN,${ENV_BIN},$(eval $(call ENV_CMD_template,${BIN})))
@@ -82,10 +81,6 @@ PIP_COMPILE_OPTIONS+=	$(foreach OPT,${PYPROJECT_EXTRAS},--extra ${OPT})
 endif
 ## options for pip-sync (pip-tools)
 PIP_SYNC_OPTIONS?=	-v --ask --pip-args "${PIP_OPTIONS}"
-
-ENV_CMD_pip?=		${ENV_DIR}/bin/pip
-ENV_pip?=		${ACTIVATE} ${ENV_CMD_pip}
-${ENV_CMD_pip}:		${ENV_CFG}
 
 ##
 ## configuration for stamp.mk
@@ -132,6 +127,7 @@ ${pip-tools-sync_stamp}: ${REQ_TXT} ${ENV_CMD_pip_SYNC}
 ${ENV_CFG}: ${INSTALL_ENV}
 	if ! [ -e ${ENV_CFG} ]; then \
 		${HOST_PYTHON} ${INSTALL_ENV} ${ENV_DIR}; \
+		${ENV_pip} install pipenv; \
 	fi
 
 ## generate a requirements.txt as a composite of project/user requirements
