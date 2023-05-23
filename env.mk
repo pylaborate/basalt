@@ -65,6 +65,11 @@ ENV_REQ_pip-sync=	${ENV_CMD_pip-compile}
 ## define variables for each tool to be used under virtual env
 $(foreach BIN,${ENV_BIN},$(eval $(call ENV_CMD_template,${BIN})))
 
+## pip will be installed under the ${ENV_CFG} make target
+ENV_CMD_pip?=		${ENV_DIR}/bin/pip
+ENV_pip?=		${ENV_CMD_pip}
+${ENV_CMD_pip}:		${ENV_CFG}
+
 ##
 ## options for shell scripts
 ##
