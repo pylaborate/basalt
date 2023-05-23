@@ -100,3 +100,4 @@ paver-minilib.zip
 /site
 *.hdf5
 /.mypy_cache
+Pipfile*
