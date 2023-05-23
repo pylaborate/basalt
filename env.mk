@@ -18,6 +18,15 @@ ENV_DIR?=	env
 ## common file for virtual enviornmentso
 ENV_CFG=	${ENV_DIR}/pyvenv.cfg
 
+## basedir for bin cmds under ENV_DIR
+## as created by -m virtualenv
+ifeq (${RUNNER_OS},Windows)
+ENV_BINDIR=		${ENV_DIR}/Scripts
+else
+ENV_BINDIR=		${ENV_DIR}/bin
+endif
+
+
 ## project configuration - default uses pyproject.toml
 PROJECT_CFG?=	pyproject.toml
 ## optional requirments.in (project file)
@@ -41,18 +50,13 @@ PYPROJECT_EXTRAS?=	dev
 ## shell scripts for tasks
 ##
 
-ACTIVATE?=		${ENV_DIR}/bin/pipenv run
+ACTIVATE?=		${ENV_BINDIR}/pipenv run
 
 ifndef ENV_CMD_template
 define ENV_CMD_template=
 ifndef ENV_CMD_$(1)
 PYPI_$(1)?=		$(1)
-ifeq (${RUNNER_OS},Windows)
-## paths created by -m virtualenv
-ENV_CMD_$(1)?=		$${ENV_DIR}/Scripts/$(1)
-else
-ENV_CMD_$(1)?=		$${ENV_DIR}/bin/$(1)
-endif
+ENV_CMD_$(1)?=		$${ENV_BINDIR}/$(1)
 ENV_$(1)?=		$${ENV_CMD_$(1)}
 ENV_REQ_$(1)?=		$${ENV_CFG}
 
@@ -75,7 +79,7 @@ ENV_REQ_pip-sync=	${ENV_CMD_pip-compile}
 $(foreach BIN,${ENV_BIN},$(eval $(call ENV_CMD_template,${BIN})))
 
 ## pip will be installed under the ${ENV_CFG} make target
-ENV_CMD_pip?=		${ENV_DIR}/bin/pip
+ENV_CMD_pip?=		${ENV_BINDIR}/pip
 ENV_pip?=		${ENV_CMD_pip}
 ${ENV_CMD_pip}:		${ENV_CFG}
 
@@ -141,8 +145,7 @@ ${pip-tools-sync_stamp}: ${REQ_TXT} ${ENV_CMD_pip_SYNC}
 ${ENV_CFG}: ${INSTALL_ENV}
 	if ! [ -e ${ENV_CFG} ]; then \
 		${HOST_PYTHON} ${INSTALL_ENV} ${ENV_DIR}; \
-		if ! ${ENV_pip} install pipenv; then \
-			echo "virtualenv installation failed on ${RUNNER_OS}"; false; env; fi; \
+		${ENV_pip} install pipenv; \
 	fi
 
 ## generate a requirements.txt as a composite of project/user requirements

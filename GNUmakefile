@@ -15,11 +15,11 @@ TOP_PACKAGES?=	pylaborate.basalt pylaborate.common_staging
 
 PDOC3_CFGOPT?=	show_source_code=False
 PDOC3_OPT?=	--html --output-dir ${APIDOC_DIR} $(foreach C,${PDOC3_CFGOPT},--config "${C}")
-PDOC_BIN?=	${ENV_DIR}/bin/pdoc3
+PDOC_BIN?=	${ENV_BINDIR}/pdoc3
 
-PYTEST_BIN?=	${ENV_DIR}/bin/pytest
+PYTEST_BIN?=	${ENV_BINDIR}/pytest
 
-FLAKE8_BIN?=	${ENV_DIR}/bin/flake8
+FLAKE8_BIN?=	${ENV_BINDIR}/flake8
 
 CLEAN_DIRS?=	${SITE_DIR} ${STAMP_DIR}
 
