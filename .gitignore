@@ -84,6 +84,7 @@ __pycache__
 /.spyproject
 /*env*
 !env.mk
+!install_env.py
 *.egg-info/
 *.dist-info/
 
@@ -97,4 +98,5 @@ requirements.txt
 paver-minilib.zip
 /build
 /site
+*.hdf5
 /.mypy_cache
