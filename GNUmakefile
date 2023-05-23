@@ -20,17 +20,20 @@ PDOC_BIN?=	${ENV_DIR}/bin/pdoc3
 
 PYTEST_BIN?=	${ENV_DIR}/bin/pytest
 
+FLAKE8_BIN?=	${ENV_DIR}/bin/flake8
+
 CLEAN_DIRS?=	${SITE_DIR} ${STAMP_DIR}
 
 RUN?=		@set -x;
 
-STAMP_TGTS+=	docs test
+STAMP_TGTS+=	docs lint test
 
-pkg_sources=	$(wildcard ${SRC_DIR}/$(subst .,/,${1})/*.py \
-			${SRC_DIR}/$(subst .,/,${1})/*/*.py \
-			${SRC_DIR}/$(subst .,/,${1})/*/*/*.py)
+py_sources=	$(wildcard ${1}/*.py ${1}/*/*.py ${1}/*/*/*.py)
 
-PY_SOURCES=	$(foreach P,${TOP_PACKAGES},$(call pkg_sources,${P}))
+PY_SOURCEDIRS=	$(foreach P,${TOP_PACKAGES},${SRC_DIR}/$(subst .,/,${P}))
+## PY_SOURCES: usable as a stale-state flag in make tgts
+PY_SOURCES=	$(foreach P,${PY_SOURCEDIRS},$(call py_sources,${P}))
+
 
 ## define the all tgt before including env.mk
 all: pip-install
@@ -39,10 +42,13 @@ all: pip-install
 include stamp.mk
 include env.mk
 
-${PDOC_BIN}:
+${PDOC_BIN}: ${ENV_CFG}
 	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
 
-${PYTEST_BIN}:
+${PYTEST_BIN}: ${ENV_CFG}
+	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
+
+${FLAKE8_BIN}: ${ENV_CFG}
 	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
 
 ## to re-build docs, run 'gmake cleandocs docs'
@@ -54,6 +60,11 @@ ${docs_stamp}: ${PDOC_BIN} ${PY_SOURCES}
 ## to re-run tests, run 'gmake test-clean test'
 ${test_stamp}: ${PYTEST_BIN} ${PY_SOURCES}
 	${ACTIVATE} ${PYTEST_BIN}
+	$(call mkstamp_sh,$@)
+
+${lint_stamp}: ${FLAKE8_BIN} ${PY_SOURCES}
+# 	fail on syntax errors, undefined names
+	${FLAKE8_BIN} --count --select=E9,F63,F7,F82 --show-source --statistics ${PY_SOURCEDIRS}
 	$(call mkstamp_sh,$@)
 
 ## docs-clean is a tgt defined in stamp.mk
