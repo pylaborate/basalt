@@ -3,6 +3,7 @@
 SHELL=		bash
 
 ENV_DIR?=	env
+ENV_BINDIR?=	${ENV_DIR}/bin
 
 APIDOC_DIR?=	${SITE_DIR}/api
 SRC_DIR?=	src
@@ -28,6 +29,9 @@ PY_SOURCEDIRS=	$(foreach P,${TOP_PACKAGES},${SRC_DIR}/$(subst .,/,${P}))
 ## PY_SOURCES: usable as a stale-state flag in make tgts
 PY_SOURCES=	$(foreach P,${PY_SOURCEDIRS},$(call py_sources,${P}))
 
+PDOC_BIN?=	${ENV_BINDIR}/pdoc3
+PYTEST_BIN?=	${ENV_BINDIR}/pytest
+FLAKE8_BIN?=	${ENV_BINDIR}/flake8
 
 ## define the all tgt before including env.mk
 all: pip-install
@@ -35,10 +39,6 @@ all: pip-install
 ## include stamp.mk before defining stamp tgts
 include stamp.mk
 include env.mk
-
-PDOC_BIN?=	${ENV_BINDIR}/pdoc3
-PYTEST_BIN?=	${ENV_BINDIR}/pytest
-FLAKE8_BIN?=	${ENV_BINDIR}/flake8
 
 ${PDOC_BIN}: ${ENV_CFG}
 	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
