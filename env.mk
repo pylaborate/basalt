@@ -70,7 +70,7 @@ endef ## ENV_CMD_template end
 endif
 
 ## tools to be used under virutal env, in targets defined below
-ENV_BIN?=	python3 pip-compile pip-sync pipenv
+ENV_BIN+=	python3 pip-compile pip-sync pipenv
 
 PYPI_pip-compile=	pip-tools
 ENV_REQ_pip-sync=	${ENV_CMD_pip-compile}

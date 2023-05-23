@@ -3,7 +3,6 @@
 SHELL=		bash
 
 ENV_DIR?=	env
-ENV_BINDIR?=	${ENV_DIR}/bin
 
 APIDOC_DIR?=	${SITE_DIR}/api
 SRC_DIR?=	src
@@ -29,9 +28,7 @@ PY_SOURCEDIRS=	$(foreach P,${TOP_PACKAGES},${SRC_DIR}/$(subst .,/,${P}))
 ## PY_SOURCES: usable as a stale-state flag in make tgts
 PY_SOURCES=	$(foreach P,${PY_SOURCEDIRS},$(call py_sources,${P}))
 
-PDOC_BIN?=	${ENV_BINDIR}/pdoc3
-PYTEST_BIN?=	${ENV_BINDIR}/pytest
-FLAKE8_BIN?=	${ENV_BINDIR}/flake8
+ENV_BIN?=	pdoc3 pytest flake8
 
 ## define the all tgt before including env.mk
 all: pip-install
@@ -40,29 +37,21 @@ all: pip-install
 include stamp.mk
 include env.mk
 
-${PDOC_BIN}: ${ENV_CFG}
-	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
-
-${PYTEST_BIN}: ${ENV_CFG}
-	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
-
-${FLAKE8_BIN}: ${ENV_CFG}
-	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
 
 ## to re-build docs, run 'gmake cleandocs docs'
-${docs_stamp}: ${PDOC_BIN} ${PY_SOURCES}
+${docs_stamp}: ${ENV_CMD_pdoc3} ${PDOC_BIN} ${PY_SOURCES}
 	${RUN} for PKG in ${TOP_PACKAGES}; do echo "# -- building docs for $${PKG}"; \
-		${ACTIVATE} ${PDOC_BIN} ${PDOC3_OPT} $${PKG}; done
+		${ENV_CMD_pdoc3} ${PDOC3_OPT} $${PKG}; done
 	$(call mkstamp_sh,$@)
 
 ## to re-run tests, run 'gmake test-clean test'
-${test_stamp}: ${PYTEST_BIN} ${PY_SOURCES}
-	${ACTIVATE} ${PYTEST_BIN}
+${test_stamp}: ${ENV_CMD_pytest} ${PY_SOURCES}
+	${ENV_CMD_pytest}
 	$(call mkstamp_sh,$@)
 
-${lint_stamp}: ${FLAKE8_BIN} ${PY_SOURCES}
+${lint_stamp}: $${ENV_CMD_flake8} ${PY_SOURCES}
 # 	fail on syntax errors, undefined names
-	${FLAKE8_BIN} --count --select=E9,F63,F7,F82 --show-source --statistics ${PY_SOURCEDIRS}
+	${ENV_CMD_flake8} --count --select=E9,F63,F7,F82 --show-source --statistics ${PY_SOURCEDIRS}
 	$(call mkstamp_sh,$@)
 
 ## docs-clean is a tgt defined in stamp.mk
