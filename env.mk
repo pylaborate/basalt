@@ -9,9 +9,17 @@
 
 HOST_PYTHON?=	python3
 
+## RUNNER_OS would typically be set under GitHub Workflow actions
+## https://docs.github.com/en/actions/learn-github-actions/variables
+RUNNER_OS?=	$(shell uname -o)
+
 ## virtual environment dir for tasks
+ifeq (${RUNNER_OS},Windows)
+ENV_DIR?=	$(shell cygpath ${CURDIR}/env)
+else
 ENV_DIR?=	${CURDIR}/env
-## common file for virtual enviornments
+endif
+## common file for virtual enviornmentso
 ENV_CFG=	${ENV_DIR}/pyvenv.cfg
 
 ## project configuration - default uses pyproject.toml
