@@ -17,14 +17,14 @@
 import sys
 import os
 from pathlib import Path
-from typing import Literal, Any
+from typing import List, Literal, Any
 
 import multiprocessing as mp
 import venv
 
 PROMPT_DEFAULT : str = "basalt"
 
-def notify(fmt: str, *args: list[Any]):
+def notify(fmt: str, *args: List[Any]):
     print("#-- " + fmt, *args, file = sys.stderr)
 
 def mk_venv(basedir: (Path | str),

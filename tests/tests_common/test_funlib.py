@@ -7,7 +7,7 @@ from pytest import mark
 from random import randint
 import sys
 from types import ModuleType
-from typing import Generator
+from typing import Generator, List
 
 ## Notes
 ##
@@ -28,7 +28,7 @@ def mock_names_gen(count) -> Generator[str, None, None]:
     for n in range(0, count):
         yield mock_module_name(randint(0, id(n)))
 
-def mock_names_list(count) -> list[str]:
+def mock_names_list(count) -> List[str]:
     return [it for it in mock_names_gen(count)]
 
 
