@@ -15,11 +15,6 @@ TOP_PACKAGES?=	pylaborate.basalt pylaborate.common_staging
 
 PDOC3_CFGOPT?=	show_source_code=False
 PDOC3_OPT?=	--html --output-dir ${APIDOC_DIR} $(foreach C,${PDOC3_CFGOPT},--config "${C}")
-PDOC_BIN?=	${ENV_BINDIR}/pdoc3
-
-PYTEST_BIN?=	${ENV_BINDIR}/pytest
-
-FLAKE8_BIN?=	${ENV_BINDIR}/flake8
 
 CLEAN_DIRS?=	${SITE_DIR} ${STAMP_DIR}
 
@@ -40,6 +35,10 @@ all: pip-install
 ## include stamp.mk before defining stamp tgts
 include stamp.mk
 include env.mk
+
+PDOC_BIN?=	${ENV_BINDIR}/pdoc3
+PYTEST_BIN?=	${ENV_BINDIR}/pytest
+FLAKE8_BIN?=	${ENV_BINDIR}/flake8
 
 ${PDOC_BIN}: ${ENV_CFG}
 	${ENV_pip} install ${PIP_OPTIONS} $(notdir $@)
