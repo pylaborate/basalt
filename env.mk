@@ -137,7 +137,7 @@ ${ENV_CFG}: ${INSTALL_ENV}
 	if ! [ -e ${ENV_CFG} ]; then \
 		${HOST_PYTHON} ${INSTALL_ENV} ${ENV_DIR}; \
 		if ! ${ENV_pip} install pipenv; then \
-			ls ${ENV_DIR}; false; fi
+			ls ${ENV_DIR}; false; fi \
 	fi
 
 ## generate a requirements.txt as a composite of project/user requirements
