@@ -136,7 +136,8 @@ ${pip-tools-sync_stamp}: ${REQ_TXT} ${ENV_CMD_pip_SYNC}
 ${ENV_CFG}: ${INSTALL_ENV}
 	if ! [ -e ${ENV_CFG} ]; then \
 		${HOST_PYTHON} ${INSTALL_ENV} ${ENV_DIR}; \
-		${ENV_pip} install pipenv; \
+		if ! ${ENV_pip} install pipenv; then \
+			ls ${ENV_DIR}; false; fi
 	fi
 
 ## generate a requirements.txt as a composite of project/user requirements
