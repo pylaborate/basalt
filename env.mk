@@ -47,7 +47,12 @@ ifndef ENV_CMD_template
 define ENV_CMD_template=
 ifndef ENV_CMD_$(1)
 PYPI_$(1)?=		$(1)
+ifeq (${RUNNER_OS},Windows)
+## paths created by -m virtualenv
+ENV_CMD_$(1)?=		$${ENV_DIR}/Scripts/$(1)
+else
 ENV_CMD_$(1)?=		$${ENV_DIR}/bin/$(1)
+endif
 ENV_$(1)?=		$${ENV_CMD_$(1)}
 ENV_REQ_$(1)?=		$${ENV_CFG}
 
@@ -136,8 +141,7 @@ ${pip-tools-sync_stamp}: ${REQ_TXT} ${ENV_CMD_pip_SYNC}
 ${ENV_CFG}: ${INSTALL_ENV}
 	if ! [ -e ${ENV_CFG} ]; then \
 		${HOST_PYTHON} ${INSTALL_ENV} ${ENV_DIR}; \
-		if ! ${ENV_pip} install pipenv; then \
-			ls ${ENV_DIR}; false; fi \
+		${ENV_pip} install pipenv \
 	fi
 
 ## generate a requirements.txt as a composite of project/user requirements
