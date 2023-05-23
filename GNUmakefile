@@ -49,7 +49,7 @@ ${test_stamp}: ${ENV_CMD_pytest} ${PY_SOURCES}
 	${ENV_CMD_pytest}
 	$(call mkstamp_sh,$@)
 
-${lint_stamp}: $${ENV_CMD_flake8} ${PY_SOURCES}
+${lint_stamp}: ${ENV_CMD_flake8} ${PY_SOURCES}
 # 	fail on syntax errors, undefined names
 	${ENV_CMD_flake8} --count --select=E9,F63,F7,F82 --show-source --statistics ${PY_SOURCEDIRS}
 	$(call mkstamp_sh,$@)
