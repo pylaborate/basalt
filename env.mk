@@ -7,6 +7,8 @@
 ##   before including env.mk
 ##
 
+HOST_PYTHON?=	python3
+
 ## virtual environment dir for tasks
 ENV_DIR?=	${CURDIR}/env
 ## common file for virtual enviornments
