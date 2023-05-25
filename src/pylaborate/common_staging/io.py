@@ -1,19 +1,20 @@
 # pyalborate.common.io (staging)
 
 from .naming import export
-from .classlib import ContextManager
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
-from typing import IO, Optional, TypeAlias
+from typing_extensions import TypeAlias
+from typing import IO, Optional, Union
 
 
 # type of file values for PolyIO
-PolyIOFile: TypeAlias = str | Path | IO
+PolyIOFile: TypeAlias = Union[str, Path, IO]
 
 
-@dataclass(slots=True, frozen=False, eq=False, order=False)
-class PolyIO(ContextManager):
+@dataclass(slots=True, frozen=False, eq=False, order=False)  # type: ignore
+class PolyIO():
     '''
     Polymorphic I/O class (context manager)
     '''
@@ -23,16 +24,12 @@ class PolyIO(ContextManager):
     open_args: dict
     io: Optional[IO]
 
-    def __init__(self, file: PolyIOFile, close_after: Optional[bool] = None, flush_after: bool = True, **open_args):
-        close = None
-        if close_after is None:
-            close = not isinstance(file, IO)
-        else:
-            close = close_after
-        self.close_after = close
+    def __init__(self, file: PolyIOFile, close_after: bool = True, flush_after: bool = True, **open_args):
+        self.file = os.path.expanduser(file)
+        self.close_after = close_after
         self.flush_after = flush_after
-        self.file = file
         self.open_args = open_args
+        ## not thread-safe
         self.io = None
 
     def close(self, flush: Optional[bool] = False):
@@ -45,28 +42,17 @@ class PolyIO(ContextManager):
         else:
             return False
 
-    def open(self, file: Optional[PolyIOFile] = None, close_after=None, **open_args):
-        io = self.io
-        if file:
-            if io is not None:
-                raise RuntimeError(
-                    "Stream already initialized", self, io, file)
-        else:
-            # no file provided to open()
-            file = self.file
-        if isinstance(file, IO):
-            io = file
-        else:
-            io = open(file, **open_args)
-        self.file = file
+    def open(self) -> IO:
+        file = self.file
+        open_args = self.open_args
+        io = open(file, **open_args)
         self.io = io
-        self.open_args = open_args
         return io
 
-    def __call__(self, file: Optional[PolyIOFile] = None, close_after=None, **open_args):
-        return self.open(file, close_after=close_after, **open_args)
+    def __call__(self):
+        return self.open()
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> IO:
         return self.open()
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -77,5 +63,5 @@ class PolyIO(ContextManager):
 
 # autopep8: off
 # fmt: off
-__all__ = []
+__all__ = []  # type: ignore
 export(__name__, __all__, 'PolyIOFile', PolyIO)
