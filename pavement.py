@@ -8,7 +8,8 @@ from shellous import sh
 import shlex
 # from types import CoroutineType
 
-from pylaborate.basalt.tasklib import write_conf
+## not published, as yet, in the changeset repository
+# from pylaborate.basalt.tasklib import write_conf
 
 
 class DefaultVersions(StrEnum):
@@ -25,10 +26,11 @@ options(
 )
 
 
-@task
-def test_conf_json_write():
-    environment.options.conf_file = "/tmp/frob.json"
-    write_conf(environment)
+## uses an as-yet unpublished source file
+# @task
+# def test_conf_json_write():
+#     environment.options.conf_file = "/tmp/frob.json"
+#     write_conf(environment)
 
 
 ##

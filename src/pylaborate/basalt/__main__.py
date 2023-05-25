@@ -8,7 +8,6 @@ import os
 from pathlib import Path
 import paver.misctasks as misctasks
 import paver.tasks as tasks
-from pylaborate.common_staging.io import PolyIO
 import sys
 from types import ModuleType
 from typing import Collection, Optional, Self, Sequence, Type
@@ -405,7 +404,7 @@ class Basalt(Cmdline):
         mod.__file__ = file
         source = None
         if exists:
-            with PolyIO(file, mode="r") as io:
+            with open(file, mode="r") as io:
                 source = io.read()
             exec(compile(source, file, "exec"), mod.__dict__)
         resident_tasks = self.get_resident_tasks()
