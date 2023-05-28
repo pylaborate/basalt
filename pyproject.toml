@@ -43,7 +43,7 @@ dev = [
 [tool.setuptools.packages.find]
 where = ["src"]
 namespaces = true
-include = ["pylaborate.basalt", "pylaborate.common_staging"]
+include = ["pylaborate"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
