@@ -132,9 +132,6 @@ class Cmdline:
         """
         pass
 
-    @contextmanager
-    ## FIXME with the @contextmanager implementation for consume_args
-    ## all implementations must call consume_args as a context manager
     def consume_args(self, args: Sequence[str]) -> Generator[List[str], None, None]:
         """parse a sequence of command line arguments for this Cmdline application
 
@@ -183,8 +180,9 @@ class Cmdline:
         ##
         _, other_args = parser.parse_known_args(args, namespace=self.option_namespace)
         ## returns the list of unparsed args:
-        yield other_args
-        ## TBD lock the options namespace from further modification:
+        return other_args
+        ## FIXME externalize the argparser/options binding, then lock the options namespace
+        ## from any later modification. also, utilize a lock on the paver.environment via basalt
         # self.option_namespace.configured()
 
 
@@ -399,37 +397,36 @@ class Basalt(Cmdline):
         # autopep8: on
         # fmt: on
 
-    @contextmanager
     def consume_args(self, args: Collection[str]):
-        with super().consume_args(args) as restargs:
-            if ("help" in restargs) or ("basalt_help" in restargs):
-                ## one approach that produces a help string, here ...
-                ##
-                ## This sets a few scoped values into the instance environment,
-                ## to be used from other methods
-                task_desc = len(restargs) != 0
-                new_parser = self.init_argparser(self)
-                self.configure_argparser(new_parser)
-                if not task_desc:
-                    ## argparser takes over here, then exits after it prints the help text:
-                    new_parser.parse_known_args(["-h"])
-                self.environment.args_help = new_parser.format_help().strip()
-                describe_tasks = False
-                if task_desc:
-                    to_desc = []
-                    for name in restargs:
-                        if name == "help":
-                            continue
-                        task = self.environment.get_task(name)
-                        if task:
-                            to_desc.append(task)
-                        else:
-                            print("[help] Task not found: %s" % (name), file=sys.stderr)
-                            sys.exit(1)
-                    describe_tasks = to_desc
-                self.environment.describe_tasks = describe_tasks
+        restargs = super().consume_args(args)
+        if ("help" in restargs) or ("basalt_help" in restargs):
+            ## one approach that produces a help string, here ...
+            ##
+            ## This sets a few scoped values into the instance environment,
+            ## to be used from other methods
+            task_desc = len(restargs) != 0
+            new_parser = self.init_argparser(self)
+            self.configure_argparser(new_parser)
+            if not task_desc:
+                ## argparser takes over here, then exits after it prints the help text:
+                new_parser.parse_known_args(["-h"])
+            self.environment.args_help = new_parser.format_help().strip()
+            describe_tasks = False
+            if task_desc:
+                to_desc = []
+                for name in restargs:
+                    if name == "help":
+                        continue
+                    task = self.environment.get_task(name)
+                    if task:
+                        to_desc.append(task)
+                    else:
+                        print("[help] Task not found: %s" % (name), file=sys.stderr)
+                        sys.exit(1)
+                describe_tasks = to_desc
+            self.environment.describe_tasks = describe_tasks
 
-            yield restargs
+        return restargs
 
     @property
     def option_namespace(self):
@@ -526,10 +523,10 @@ class Basalt(Cmdline):
         return file if exists else None
 
 
-class BasaltHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
+
 
 class BasaltHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
-
+    def format_help(self):
         instance = self.prog
         ## args_str: the help text from the superclass' help formatter
         args_str = super().format_help().strip()

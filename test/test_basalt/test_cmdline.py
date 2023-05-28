@@ -28,16 +28,14 @@ class SampleAsyncRunner(Cmdline):
         self._cmd = tuple(restargs)
         return ()
 
-    @contextmanager
     def consume_args(self, args):
         ## for example : extending Cmdline.consume_args
-        with super().consume_args(args) as initial_restargs:
-            if "--" in initial_restargs:
-                initial_restargs.remove("--")
-            next_restargs = self.parse_more_args(
-                initial_restargs, self.option_namespace
-            )
-            yield next_restargs
+        initial_restargs = super().consume_args(args)
+        if "--" in initial_restargs:
+            initial_restargs.remove("--")
+        return self.parse_more_args(
+            initial_restargs, self.option_namespace
+        )
 
     async def run(self):
         return await shellous.sh(*self.cmd)
@@ -47,14 +45,7 @@ class SampleAsyncRunner(Cmdline):
         return _loop.run_until_complete(self.run())
 
     def main(self, args):
-        with self.consume_args(args):
-            ## wih the @contextmanager implementation of consume_args()
-            ## it would not "work out" to call consume_args directly here,
-            ## without calling it as a context manager
-            ##
-            ## also, the implementaiton would fail if not calling consume_args
-            ## ... as a context manager ... before dispatching to any form of 'run'
-            pass
+        self.consume_args(args)
         try:
             out = self.run_sync()
             print(out)
