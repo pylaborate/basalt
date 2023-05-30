@@ -82,9 +82,7 @@ __pycache__
 /.settings
 *.kdev4
 /.spyproject
-/*env*
-!env.mk
-!install_env.py
+/*env*/
 *.egg-info/
 *.dist-info/
 
