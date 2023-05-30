@@ -9,7 +9,8 @@ import paver.misctasks as misctasks
 import paver.tasks as tasks
 import sys
 from types import ModuleType
-from typing import Collection, Generator, List, Optional, Self, Sequence, Type
+from typing import Collection, Generator, List, Optional, Sequence
+from typing_extensions import Self, Type
 
 @dataclass(init = False, eq = False, order = False, frozen=True)
 class ArgparseAction():
