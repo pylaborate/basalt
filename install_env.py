@@ -20,7 +20,7 @@ import multiprocessing as mp
 import os
 from pathlib import Path
 import sys
-from typing import Any, List, Literal, Optional
+from typing import Any, Callable, List, Sequence, Literal, Optional
 import venv
 
 import shlex
@@ -61,6 +61,56 @@ def gen_argparser(prog: str) -> ap.ArgumentParser:
                         default = "env", nargs="?")
     # fmt: on
     return parser
+
+
+def with_main(
+    options: ap.Namespace,
+    sub_main: "Callable",
+    sys_args: "Sequence[str]" =(),
+    main_args=(),
+    main_kwargs=None,
+):
+    ## trivial hack for running something like a shell command
+    ## within the same python process as the caller, given a
+    ## known 'main' function for the effective shell command
+    ## implementation
+    ##
+    ## This is used, below, to ensure that the initial venv
+    ## environment will be created with the same Python
+    ## implementation as the running Pythyon process
+    rc = 1
+    arg_0 = options.prog
+    orig_argv = sys.argv
+    sub_name = "<Unknown>"
+    try:
+        sub_name = "%s.%s" % (
+            sub_main.__module__,
+            sub_main.__name__,
+        )
+    finally:
+        pass
+    try:
+        if options.debug:
+            notify("Running %s", sub_name)
+        # fmt: off
+        sys.argv = [arg_0, *sys_args]
+        sub_rtn = None
+        if main_kwargs:
+            sub_rtn = sub_main(*main_args, **main_kwargs)
+        else:
+            sub_rtn = sub_main(*main_args)
+        # fmt: on
+        if isinstance(sub_rtn, int):
+            rc = sub_rtn
+        else:
+            rc = 0
+    except Exception as e:
+        notify("Failed call to %s: %s", sub_name, e)
+    finally:
+        if options.debug:
+            notify("Returning from %s: %d", sub_name, rc)
+        sys.argv = orig_argv
+        return rc
 
 
 # fmt: off
