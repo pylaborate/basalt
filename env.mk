@@ -41,7 +41,7 @@ REQ_DEPENDS=	${PROJECT_CFG} ${ADDL_REQ} ${LOCAL_REQ}
 
 ## utility script for virtual environment installation,
 ## does not install virtualenv in ${ENV_DIR}
-INSTALL_ENV?=	install_env.py
+PROJECT_PY?=	project.py
 
 ## optional features for the project config, used with pip-compile
 PYPROJECT_EXTRAS?=	dev
