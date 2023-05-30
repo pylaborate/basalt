@@ -1,9 +1,7 @@
 ## pylaborarte.basalt.__main__
 
 import argparse
-from contextlib import contextmanager
 from dataclasses import dataclass
-from enum import StrEnum
 from io import StringIO
 import os
 from pathlib import Path
@@ -12,6 +10,11 @@ import paver.tasks as tasks
 import sys
 from types import ModuleType
 from typing import Collection, Generator, List, Optional, Self, Sequence, Type
+
+if sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:
+    from backports.strenum import StrEnum
 
 
 class ArgparseAction(StrEnum):

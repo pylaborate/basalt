@@ -1,12 +1,17 @@
 ## pavement.py prototype [basalt project]
 
 from asyncio.events import get_event_loop
-from enum import StrEnum
 from paver.easy import cmdopts, environment, options, task
 import paver.tasks as tasks
 from shellous import sh
 import shlex
+import sys
 # from types import CoroutineType
+
+if sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:
+    from backports.strenum import StrEnum
 
 ## not published, as yet, in the changeset repository
 # from pylaborate.basalt.tasklib import write_conf
