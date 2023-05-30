@@ -1,38 +1,41 @@
-# utility forms for collections and sequences
+## colib.py
+
+"""utilities for collections and sequences"""
 
 from .naming import export
 from typing import Any, List, Callable, Collection, Generator, Hashable, TypeVar
 
-H = TypeVar('H', bound=Hashable)
+H = TypeVar("H", bound=Hashable)
 
 
-def uniq(col: List[H],
-         hash_call: Callable[[H], Any] = hash,
-         reverse: bool = True) -> List[H]:
-    '''
-    Unique in-place processor for mutable lists of hashable values.
+def uniq(
+    col: List[H], hash_call: Callable[[H], Any] = hash, reverse: bool = True
+) -> List[H]:
+    """
+    Unique in-place processor for lists of hashable values.
 
-    This function modifies the input value in place, removing non-unique values.
-    The processed collection will be returned.
+    ## Usage
+
+    This function modifies the input `col` in place, removing non-unique values.
+    The processed list will be returned.
 
     The provided `hash_call` function should be callable for each element in the
-    provided collection. The function should return a unique value for each unique
-    element in the collection.
+    list. The function should return a unique value for each unique list element.
 
-    If `reverse` provides a non-falsey value, then any non-unique elements will be
-    removed as starting from the end of the provided collection. This procedure may
-    avoid a small number of addition/subtration calls, and thus has been implemented
-    as the default.
+    If `reverse` provides a non-falsey value, non-unique elements will be removed as
+    starting from the end of the provided list. This approach may avoid a small number
+    of additional calls in the implementation, and has been selected as a default.
 
-    Caveats:
+    ## Implementation Notes
 
-    The provided collection `col` must implement an indexed `pop` method, with a
-    signature `col.pop(n: int).`
-    '''
+    - The type signature for this function has specified that the input value should be
+      a list. As a minimum, the `col` must support an indexed form of object reference
+      and a `pop` method, with a type signature `col.pop(n:int)`
+    """
     colen = len(col)
     if len == 0:
         return col
-    buf = list()
+    buf = []
     start = colen if reverse else 0
     end = 0 if reverse else colen
     count = -1 if reverse else 1
@@ -52,18 +55,21 @@ def uniq(col: List[H],
     return col
 
 
-def uniq_gen(col: Collection[H],
-             hash_call: Callable[[H], Any] = hash) -> Generator[H, None, None]:
-    '''
-    Unique generator for mutable and immutable collections of hashable values.
+def uniq_gen(
+    col: Collection[H], hash_call: Callable[[H], Any] = hash
+) -> Generator[H, None, None]:
+    """
+    Unique generator for collections of hashable values.
+
+    ## Usage
 
     The provided `hash_call` function should be callable for each element in the
     provided collection. The function should return a unique value for each unique
     element in the collection.
 
-    For each element in the collection for which the `hash_call` returns a unique value,
-    the generator will yield that element to the caller.
-    '''
+    For each element in the collection for which the `hash_call` returns a unique
+    value, the generator will yield the element to the caller.
+    """
     buf = []
     for elt in col:
         h = hash_call(elt)
