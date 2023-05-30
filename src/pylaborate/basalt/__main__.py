@@ -7,9 +7,10 @@ import os
 from pathlib import Path
 import paver.misctasks as misctasks
 import paver.tasks as tasks
+from pylaborate.common_staging import ModuleArg, PathArg
 import sys
 from types import ModuleType
-from typing import Collection, Generator, List, Optional, Sequence
+from typing import Collection, Generator, List, Optional, Sequence, Union
 from typing_extensions import Self, Type
 
 @dataclass(init = False, eq = False, order = False, frozen=True)
@@ -247,7 +248,7 @@ def help_formatter_class(
     name: str = "help_formatter",
     bases: tuple = (argparse.ArgumentDefaultsHelpFormatter,),
     dct: dict = {},
-    module: Optional[ModuleType | str] = None,
+    module: Optional[ModuleArg] = None,
     **kwargs,
 ):
     ## pass a representative module name for the anonymous class,
@@ -496,7 +497,7 @@ class Basalt(Cmdline):
             "minilib": misctasks.minilib,
         }
 
-    def load_paver_file(self) -> Optional[Path | str]:
+    def load_paver_file(self) -> Optional[PathArg]:
         ## emulating behaviors from paver.tasks._launch_pavement()
         ##
         ## usage:

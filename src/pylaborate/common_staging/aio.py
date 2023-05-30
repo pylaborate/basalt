@@ -6,9 +6,10 @@ import asyncio as aio
 from contextlib import contextmanager
 from .naming import export
 from typing import abstractmethod, Callable, Optional, Union
-from typing_extensions import Any, TypeAlias, ContextManager, Protocol
+from typing_extensions import Annotated, Any, TypeAlias, ContextManager, Protocol
 
-TimeoutArg: TypeAlias = Union[int, float, bool]
+
+TimeoutArg: Annotated[TypeAlias, "Generalized timeout value"] = Union[int, float, bool]
 
 
 class LockType(Protocol):
