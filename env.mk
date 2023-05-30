@@ -142,9 +142,9 @@ ${pip-tools-sync_stamp}: ${REQ_TXT} ${ENV_CMD_pip_SYNC}
 	$(call mkstamp_sh,$@)
 
 ## this should not reinstall the environment if pyvenv.cfg already exists
-${ENV_CFG}: ${INSTALL_ENV}
-	if ! [ -e ${ENV_CFG} ]; then \
-		${HOST_PYTHON} ${INSTALL_ENV} ${ENV_DIR}; \
+${ENV_CFG}: ${PROJECT_PY}
+	if ! [ -e ${ENV_CFG} ]; then VIRTUALENV_OPTS="--no-periodic-update" \
+		${HOST_PYTHON} ${PROJECT_PY} ensure_env ${ENV_DIR}; \
 		${ENV_pip} install pipenv; \
 	fi
 
