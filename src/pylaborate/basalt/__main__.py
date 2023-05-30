@@ -11,23 +11,20 @@ import sys
 from types import ModuleType
 from typing import Collection, Generator, List, Optional, Self, Sequence, Type
 
-if sys.version_info >= (3, 11):
-    from enum import StrEnum
-else:
-    from backports.strenum import StrEnum
-
-
-class ArgparseAction(StrEnum):
-    STORE = "store"
-    STORE_CONST = "store_const"
-    STORE_TRUE = "store_true"
-    STORE_FALSE = "store_false"
-    APPEND = "append"
-    APPEND_CONST = "append_const"
-    COUNT = "count"
-    HELP = "help"
-    VERSION = "version"
-    EXTEND = "extend"
+@dataclass(init = False, eq = False, order = False, frozen=True)
+class ArgparseAction():
+    ## approximation of a StrEnum class,
+    ## without portability issues
+    STORE: str = "store"
+    STORE_CONST: str = "store_const"
+    STORE_TRUE: str = "store_true"
+    STORE_FALSE: str = "store_false"
+    APPEND: str = "append"
+    APPEND_CONST: str = "append_const"
+    COUNT: str = "count"
+    HELP: str = "help"
+    VERSION: str = "version"
+    EXTEND: str = "extend"
 
 
 @dataclass(init=False, eq=False, order=False)
