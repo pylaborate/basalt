@@ -9,54 +9,14 @@ from pylaborate.common_staging.naming import get_module, ModuleArg
 
 ## tests
 from assertpy import assert_that
-from types import ModuleType
-import sys
 
 
 ## Descriptors at detail
 ## https://docs.python.org/3/howto/descriptor.html
 
-
-def gen_class_info(cls):
-    ## prototype for predicting the method resolution order
-    ## of a single class
-    ##
-    ## defined before merge_mro()
-    ##
-    ## used initially for predicting the method resolution order
-    ## for a new class, given a set of base classes
-    ##
-    ## does not actually use the class' method resolution order
-    ##
-    ## produces a list value sequentially equivalent to a class'
-    ## method resolution order under cls.__mro__
-    ##
-    ## no known instances where this generator produces
-    ## a sequence not equivalent to the cls' MRO
-    ##
-    ## the general remove-and-append methodology developed here is
-    ## also used in merge_mro
-    ##
-    if cls is object:
-        yield cls
-    else:
-        bases = cls.__bases__
-        found = [cls]
-        for b in bases:
-            for nxtc in gen_class_info(b):
-                if nxtc in found:
-                    found.remove(nxtc)
-                found.append(nxtc)
-        for it in found:
-            yield it
-
-
 def merge_mro(bases: Sequence[Type]) -> Generator[Type, None, None]:
     ## utility for predicting a method resolution order, given
     ## the base classes of a class being initialized
-    ##
-    ## contrasted to the gen_class_info prototype, above,
-    ## this will use the actual __mro__ of each class.
     found = []
     for cls in bases:
         for mrocls in cls.__mro__:
@@ -774,35 +734,6 @@ def test_fields_meta_a():
     ## a non-FieldType class
 
 
-def each_class(context=sys.modules, cache=[]):
-    if id(context) not in cache:
-        cache.append(id(context))
-        match context:
-            case type():
-                yield context
-                yield from each_class(context.__dict__, cache)
-            case ModuleType():
-                yield from each_class(context.__dict__, cache)
-            case dict():
-                for name in context:
-                    yield from each_class(context[name], cache)
-
-
-def test_gen_class_info():
-    rslt = []
-    failed = []
-    for name in sys.modules:
-        for cls in each_class(sys.modules[name]):
-            try:
-                if tuple(gen_class_info(cls)) != cls.__mro__:
-                    rslt.append(cls)
-            except Exception:
-                failed.append(cls)
-    if len(failed) != 0:
-        print("! FAILED " + str(failed))
-    if len(rslt) != 0:
-        print("!= " + str(rslt))
-    assert_that(len(rslt)).is_zero()
 
 if __name__ == "__main__":
     test_fields_meta_a()
