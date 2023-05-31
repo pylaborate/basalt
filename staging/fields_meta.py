@@ -1,10 +1,16 @@
 ## prototype for an alternate approach to structured constants
 
 from abc import abstractmethod
+
 from typing import Any, Dict, Generator, Generic, Optional, Sequence, Union
 from typing_extensions import Annotated, Literal, Protocol, Type, TypeVar
 
 from pylaborate.common_staging.naming import get_module, ModuleArg
+
+## tests
+from assertpy import assert_that
+from types import ModuleType
+import sys
 
 
 ## Descriptors at detail
@@ -22,9 +28,11 @@ def gen_class_info(cls):
     ##
     ## does not actually use the class' method resolution order
     ##
-    ## may serve for a purpose of testing for the approach used here,
-    ## ensuring that gen_class_info(cls) == cls.mro() for every
-    ## defined class within any single environment
+    ## produces a list value sequentially equivalent to a class'
+    ## method resolution order under cls.__mro__
+    ##
+    ## no known instances where this generator produces
+    ## a sequence not equivalent to the cls' MRO
     ##
     ## the general remove-and-append methodology developed here is
     ## also used in merge_mro
@@ -48,21 +56,23 @@ def merge_mro(bases: Sequence[Type]) -> Generator[Type, None, None]:
     ## the base classes of a class being initialized
     ##
     ## contrasted to the gen_class_info prototype, above,
-    ## this will use the actual mro() value of each class.
+    ## this will use the actual __mro__ of each class.
     found = []
     for cls in bases:
-        for mroc in cls.mro():
-            if mroc in found:
-                found.remove(mroc)
-            found.append(mroc)
+        for mrocls in cls.__mro__:
+            if mrocls in found:
+                found.remove(mrocls)
+            found.append(mrocls)
     for cls in found:
         yield cls
 
 
 T = TypeVar("T")
 
+
 class ProtocolError(Exception):
     pass
+
 
 class Field(Generic[T]):
     """generic class for read-only field descriptors"""
@@ -620,7 +630,6 @@ class FieldTypeSubtest(FieldTypeTest, metaclass=FieldClass):
 
 
 def test_fields_meta_a():
-    from assertpy import assert_that
 
     assert_that(hasattr(FieldTypeTest, "field_a")).is_true()
     ## ensure normal Field descriptor value initialization
@@ -764,6 +773,36 @@ def test_fields_meta_a():
     ## FIXME also test the @fieldclass decorator function when decorating
     ## a non-FieldType class
 
+
+def each_class(context=sys.modules, cache=[]):
+    if id(context) not in cache:
+        cache.append(id(context))
+        match context:
+            case type():
+                yield context
+                yield from each_class(context.__dict__, cache)
+            case ModuleType():
+                yield from each_class(context.__dict__, cache)
+            case dict():
+                for name in context:
+                    yield from each_class(context[name], cache)
+
+
+def test_gen_class_info():
+    rslt = []
+    failed = []
+    for name in sys.modules:
+        for cls in each_class(sys.modules[name]):
+            try:
+                if tuple(gen_class_info(cls)) != cls.__mro__:
+                    rslt.append(cls)
+            except Exception:
+                failed.append(cls)
+    if len(failed) != 0:
+        print("! FAILED " + str(failed))
+    if len(rslt) != 0:
+        print("!= " + str(rslt))
+    assert_that(len(rslt)).is_zero()
 
 if __name__ == "__main__":
     test_fields_meta_a()
