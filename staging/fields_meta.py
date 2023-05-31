@@ -551,6 +551,11 @@ class FieldTypeSubtest(FieldTypeTest, metaclass=FieldClass):
     field_c = Field(0)
 
 
+@fieldclass
+class FieldClassDecoratorTest(FieldTypeSubtest):
+    field_d: str = "Thunk"
+
+
 def each_field_descriptor(cls):
     dct = cls.__dict__
     for attr in dct:
@@ -572,6 +577,7 @@ def test_field_type_test():
     assert_that(desc_a.containing_class).is_equal_to(FieldTypeTest)
     ## ensure any annotation is carried into the field descriptor
     assert_that(desc_a.annotation).is_equal_to(int)
+
 
 def test_field_type_subtest():
     ## ensure Field descriptor inheritance
@@ -616,6 +622,7 @@ def test_field_type_subtest():
     ## ensure FieldType constructor => singleton semantics
     assert_that(FieldTypeTest() is FieldTypeTest).is_true()
     assert_that(FieldTypeSubtest() is FieldTypeSubtest).is_true()
+
 
 def test_field_class_derive():
     this_module = get_module(__name__)
@@ -695,17 +702,37 @@ def test_fieldclass_decorator_func():
     this_module = get_module(__name__)
     assert_that(hasattr(this_module, "DerivedFieldTypeTest")).is_true()
 
+    ## test for the actual decorator application
+    assert_that(hasattr(FieldClassDecoratorTest, "derived_from")).is_true()
+    assert_that(len(FieldClassDecoratorTest.__bases__)).is_equal_to(1)
+    assert_that(FieldClassDecoratorTest.__bases__[0]).is_equal_to(
+        FieldClassDecoratorTest.derived_from
+    )
+
+    decorated_dtors = tuple(
+        (f.name for f in each_field_descriptor(FieldClassDecoratorTest))
+    )
+    assert_that("field_a" in decorated_dtors).is_true()
+    assert_that("field_b" in decorated_dtors).is_true()
+    assert_that("field_c" in decorated_dtors).is_true()
+    assert_that("field_d" in decorated_dtors).is_true()
+    assert_that(FieldClassDecoratorTest.field_a).is_equal_to(FieldTypeTest.field_a)
+    assert_that(FieldClassDecoratorTest.field_b).is_equal_to(FieldTypeSubtest.field_b)
+    assert_that(FieldClassDecoratorTest.field_c).is_equal_to(FieldTypeSubtest.field_c)
+    assert_that(FieldClassDecoratorTest.field_d).is_equal_to(FieldClassDecoratorTest.derived_from.field_d)
+
     ## restoring the initial class binding within the testing environment
     ## - note that the derived_fc may still not be garbage collected,
     ##   while it's referenced as a subclass of some other class
     setattr(get_module(__name__), initial_ftt.__name__, initial_ftt)
 
-    ## FIXME develop a more complex example of multiple inheritance
-    ## among FieldType classes, for purpose of testing the usage
-    ## of merge_mro above
 
-    ## FIXME also test the @fieldclass decorator function when decorating
-    ## a non-FieldType class
+## FIXME develop a more complex example of multiple inheritance
+## among FieldType classes, for purpose of testing the usage
+## of merge_mro above
+
+## FIXME also test the @fieldclass decorator function when decorating
+## a non-FieldType class
 
 
 if __name__ == "__main__":
