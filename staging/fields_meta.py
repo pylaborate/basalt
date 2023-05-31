@@ -14,6 +14,7 @@ from assertpy import assert_that
 ## Descriptors at detail
 ## https://docs.python.org/3/howto/descriptor.html
 
+
 def merge_mro(bases: Sequence[Type]) -> Generator[Type, None, None]:
     ## utility for predicting a method resolution order, given
     ## the base classes of a class being initialized
@@ -302,32 +303,16 @@ class FieldClass(type):
     """Generic metaclass for field classes"""
 
     @property
-    def descriptors(self) -> Dict[str, DescriptorType]:
-        return self._descriptors
-
-    @property
     def derived_from(self) -> Union[None, Type]:
         ## utility acessor for reflection under @fieldclass applications
         if hasattr(self, "_derived_from"):
             return self._derived_from
 
     def __new__(cls: Type, name: str, bases: Sequence, dct: Dict):
-        ## - Resolved: how are descriptors actually stored in a class?
-        ##    see cls.__dict__ && get_descriptor()
-        ## - Resolved (??) Within a FieldClass, fold all non-dunder/non_private
-        ##    attr decls from dct into a Field descriptor
-        ##   - ... for each ostensible attr value that is not a descriptor already
-        ##   - Implemented below, pursaunt towards an initial usage test
-        print(f"new FieldClass: {cls} {name} {bases} {dct}")
-        ## Implementation Note:
-        ##   attr types are provided via an '__annotations__'  value in dct
+        ## Concept: Within a FieldClass, fold all non-dunder/non_private attr decls
+        ## into a Field descriptor
 
         newdct = dict()
-
-        if "_descriptors" in dct:
-            descriptors = dct["_descriptors"].copy()
-        else:
-            descriptors = {}
 
         if "derived_from" in dct:
             ## moving the derived_from value from the implicit public namespace
@@ -346,6 +331,10 @@ class FieldClass(type):
             dct.pop("derived_from")
             newdct["_derived_from"] = derived
 
+        ## collection of field descriptors, used internally
+        descriptors = {}
+
+        ## descriptors to configure after class init
         configure_descriptors = []
 
         for attr in dct:
@@ -368,10 +357,10 @@ class FieldClass(type):
                 ## If fdesc.originating_class is False, the Field descriptor
                 ## fdesc will not be further initialized
                 ##
-                descriptors[attr] = fieldval
                 if isinstance(fieldval, Field) and (
                     fieldval.originating_class is not False
                 ):
+                    descriptors[attr] = fieldval
                     configure_descriptors.append(fieldval)
             else:
                 field = Field(fieldval)
@@ -383,57 +372,30 @@ class FieldClass(type):
         if "__annotations__" in dct:
             cls_annot = dct["__annotations__"]
             for attr in descriptors:
-                d = descriptors[attr]
-                if isinstance(d, Field):
-                    if attr in cls_annot and attr not in field_annot:
-                        field_annot[attr] = cls_annot[attr]
+                if attr in cls_annot and attr not in field_annot:
+                    field_annot[attr] = cls_annot[attr]
 
-        for basc in merge_mro(bases):
+        for basc in bases:
             ## ensure inheritance (through dup) of non-shadowed Field descriptors
-            ##
-            ## FIXME remove the _descriptors attribute storage here
-            ## - for each name in basc.__dict__ where `get_descriptor(basc, name)``
-            ##   returns a truthy value, assume that the value is a descriptor
-            ## - if the value is a Field descriptor, then handle as below,
-            ##   otherwise discard the value locally
-            ## - note that the present implementation would iterate across the
-            ##   complete method resolution order, given the set of base classes.
-            ##
-            ##   This depth of iteration was implemented before the definition
-            ##   of get_descriptor(). It may not be necessary if using
-            ##   get_descriptor() across the __dict__ of each immediate
-            ##   base class.
-            ##
-            ## - This should be revised to limit to operations on Field
-            ##   descriptors, such that should normally be inherited across
-            ##   each subclass having a FieldClass metaclass
-            ##
-            ## - This update will require some modification of the test cases,
-            ##   defined below
-            ##
-            if hasattr(basc, "_descriptors"):
-                dtors = getattr(basc, "_descriptors")
-                for attr in dtors:
-                    desc = dtors[attr]
-                    if isinstance(desc, Field) and not (attr in descriptors):
-                        desc_dup = desc.dup()
-                        descriptors[attr] = desc_dup
-                        configure_descriptors.append(desc_dup)
-                if hasattr(basc, "__annotations__"):
-                    ## transpose the first corresponding annotation from each base (MRO) class
-                    basc_annot = basc.__annotations__
-                    for attr in descriptors:
-                        if attr not in field_annot and attr in basc_annot:
-                            field_annot[attr] = basc_annot[attr]
-
-        ## FIXME there may be some temporary wastage here, for annotations in `field_annot`
-        ## not annotating any Field descriptor to configure - see implementation notes, above
-
-        newdct["_descriptors"] = descriptors
+            bdct = basc.__dict__
+            annotations = None
+            for attr in bdct:
+                val = bdct[attr]
+                if attr == "__annotations__":
+                    annotations = val
+                elif isinstance(val, Field) and attr not in newdct:
+                    desc_dup = val.dup()
+                    newdct[attr] = desc_dup
+                    descriptors[attr] = desc_dup
+                    configure_descriptors.append(desc_dup)
+            if annotations:
+                for attr in annotations:
+                    if (attr in descriptors) and (attr not in field_annot):
+                        field_annot[attr] = annotations[attr]
 
         dct.update(newdct)
-
         cls_new = super().__new__(cls, name, bases, dct)
+
         for desc in configure_descriptors:
             desc.containing_class = cls_new
             if not desc.originating_class:
@@ -589,13 +551,20 @@ class FieldTypeSubtest(FieldTypeTest, metaclass=FieldClass):
     field_c = Field(0)
 
 
-def test_fields_meta_a():
+def each_field_descriptor(cls):
+    dct = cls.__dict__
+    for attr in dct:
+        val = dct[attr]
+        if isinstance(val, Field):
+            yield val
 
+
+def test_fields_meta_a():
     assert_that(hasattr(FieldTypeTest, "field_a")).is_true()
     ## ensure normal Field descriptor value initialization
     assert_that(FieldTypeTest.field_a).is_equal_to(15)
 
-    dtors_fttest = FieldTypeTest.descriptors
+    dtors_fttest = dict(([f.name, f] for f in each_field_descriptor(FieldTypeTest)))
     assert_that("field_a" in dtors_fttest).is_true()
     desc_a = dtors_fttest["field_a"]
     ## ensure normal Field descriptor initialization
@@ -619,7 +588,7 @@ def test_fields_meta_a():
     ## ensure value
     assert_that(FieldTypeSubtest.field_c).is_equal_to(0)
 
-    sub_dtors = FieldTypeSubtest.descriptors
+    sub_dtors = dict(([f.name, f] for f in each_field_descriptor(FieldTypeSubtest)))
     assert_that("field_a" in sub_dtors).is_true()
     assert_that("field_b" in sub_dtors).is_true()
     assert_that("field_c" in sub_dtors).is_true()
@@ -660,7 +629,7 @@ def test_fields_meta_a():
     ## ensure field values are inherited via derive()
     assert_that(derived.field_a).is_equal_to(15)
     ## ensure field descriptors are inherited via derive()
-    derived_dtors = derived.descriptors
+    derived_dtors = dict(([f.name, f] for f in each_field_descriptor(derived)))
     assert_that("field_a" in derived_dtors).is_true()
     derived_field_a = derived_dtors["field_a"]
     ## ensure descriptors are initailized via derive()
@@ -712,7 +681,7 @@ def test_fields_meta_a():
     ## ensure field values are inherited via fieldclass() -> derive()
     assert_that(derived_fc.field_a).is_equal_to(15)
     ## ensure field descriptors are inherited via fieldclass() -> derive()
-    derived_fc_dtors = derived_fc.descriptors
+    derived_fc_dtors = dict(([f.name, f] for f in each_field_descriptor(derived_fc)))
     assert_that("field_a" in derived_fc_dtors).is_true()
     derived_fc_field_a = derived_fc_dtors["field_a"]
     ## ensure descriptors are initailized via fieldclass() -> derive()
@@ -732,7 +701,6 @@ def test_fields_meta_a():
 
     ## FIXME also test the @fieldclass decorator function when decorating
     ## a non-FieldType class
-
 
 
 if __name__ == "__main__":
