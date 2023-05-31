@@ -44,7 +44,7 @@ class Field(Generic[T]):
     ## become a normal attribute value.
 
     def __init__(self, value: T):
-        self.value = value
+        self._value = value
         self._originating_class = None
         self._containing_class = None
         self._name = None
@@ -57,7 +57,7 @@ class Field(Generic[T]):
         self._annotation = None
 
     def dup(self):
-        new = self.__class__(self.value)
+        new = self.__class__(self._value)
         new.originating_class = self.originating_class
         new.name = self.name
         annot = self.annotation
@@ -66,8 +66,8 @@ class Field(Generic[T]):
         return new
 
     def __set_name__(self, owner, name: str):
-        cont = self.containing_class
-        if (not cont) or (owner is cont):
+        containing = self.containing_class
+        if (not containing) or (owner is containing):
             ## Implementation Note: If self.containing_class is not yet
             ## initialized, it may be that this is being called during
             ## class initialization ...
@@ -75,14 +75,14 @@ class Field(Generic[T]):
         else:
             # fmt: off
             raise ProtocolError(
-                "Cannot __set__name__() for non-containing class %s in field %s of %s" % (
-                    owner, self, cont
+                "Cannot set name for non-containing class %s in field %s of %s" % (
+                    owner, self, containing
                 )
             )
             # fmt: on
 
     def __get__(self, obj, objtype=None) -> T:
-        return self.value
+        return self._value
 
     @property
     def name(self) -> Union[str, None]:
@@ -94,7 +94,7 @@ class Field(Generic[T]):
         name = self._name
         if name and new_value != name:
             # fmt: off
-            raise ValueError(
+            raise ProtocolError(
                 "Name already initialized in %s" % self,
                 self, name, new_value
             )
@@ -118,7 +118,7 @@ class Field(Generic[T]):
         ## Note: Not thread-safe in initializing self.originating_class
         if orig and (new_value is not orig):
             # fmt: off
-            raise ValueError(
+            raise ProtocolError(
                 "Originating class already initialized in %s" % self,
                 self, orig, new_value
             )
@@ -139,7 +139,7 @@ class Field(Generic[T]):
         ## Note: Not thread-safe in initializing self.containing_class
         if orig and (new_value is not orig):
             # fmt: off
-            raise ValueError(
+            raise ProtocolError(
                 "Containing class already initialized in %s" % self,
                 self, orig, new_value
             )
@@ -200,7 +200,7 @@ class Field(Generic[T]):
 ## FIXME Define Field descriptor subclasses each implementing descriptor __set__
 ## - ReadOnlyField decriptor
 ## - WriteOnceField descriptor
-## - MutableField desctiptor, also implementing __delete__
+## - MutableField descriptor, also implementing __delete__
 
 
 class ArgumentError(Exception):
@@ -559,7 +559,7 @@ def each_field_descriptor(cls):
             yield val
 
 
-def test_fields_meta_a():
+def test_field_type_test():
     assert_that(hasattr(FieldTypeTest, "field_a")).is_true()
     ## ensure normal Field descriptor value initialization
     assert_that(FieldTypeTest.field_a).is_equal_to(15)
@@ -573,6 +573,7 @@ def test_fields_meta_a():
     ## ensure any annotation is carried into the field descriptor
     assert_that(desc_a.annotation).is_equal_to(int)
 
+def test_field_type_subtest():
     ## ensure Field descriptor inheritance
     assert_that(hasattr(FieldTypeSubtest, "field_a")).is_true()
     ## ensure value
@@ -616,12 +617,13 @@ def test_fields_meta_a():
     assert_that(FieldTypeTest() is FieldTypeTest).is_true()
     assert_that(FieldTypeSubtest() is FieldTypeSubtest).is_true()
 
-    ## ensure operation of the derive() method
+def test_field_class_derive():
     this_module = get_module(__name__)
     if hasattr(this_module, "DerivedFieldTypeTest"):
-        ## thunk for usage in interactive eval
+        ## cleanup for interactive eval
         delattr(this_module, "DerivedFieldTypeTest")
 
+    ## ensure operation of the derive() method
     derived = FieldTypeTest.derive("DerivedFieldTypeTest", __module__=__name__)
 
     assert_that(derived.__name__).is_equal_to("DerivedFieldTypeTest")
@@ -638,6 +640,8 @@ def test_fields_meta_a():
     ## ensure the derived class is bound under the denoted module, via derive()
     assert_that(hasattr(this_module, "DerivedFieldTypeTest")).is_true()
 
+
+def test_fieldclass_decorator_func():
     ##
     ## tests for the @fieldclass decorator function
     ##
@@ -688,6 +692,7 @@ def test_fields_meta_a():
     assert_that(derived_fc_field_a.originating_class).is_equal_to(initial_ftt)
     assert_that(derived_fc_field_a.containing_class).is_equal_to(derived_fc)
     ## ensure the derived_fc class is bound under the denoted module, via fieldclass() -> derive()
+    this_module = get_module(__name__)
     assert_that(hasattr(this_module, "DerivedFieldTypeTest")).is_true()
 
     ## restoring the initial class binding within the testing environment
@@ -704,4 +709,7 @@ def test_fields_meta_a():
 
 
 if __name__ == "__main__":
-    test_fields_meta_a()
+    test_field_type_test()
+    test_field_type_subtest()
+    test_field_class_derive()
+    test_fieldclass_decorator_func()
