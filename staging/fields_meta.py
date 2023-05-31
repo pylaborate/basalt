@@ -564,9 +564,9 @@ def test_fields_meta_a():
     ## ensure normal Field descriptor value initialization
     assert_that(FieldTypeTest.field_a).is_equal_to(15)
 
-    dtors_fttest = dict(([f.name, f] for f in each_field_descriptor(FieldTypeTest)))
+    dtors_fttest = tuple((f.name for f in each_field_descriptor(FieldTypeTest)))
     assert_that("field_a" in dtors_fttest).is_true()
-    desc_a = dtors_fttest["field_a"]
+    desc_a = FieldTypeTest.__dict__["field_a"]
     ## ensure normal Field descriptor initialization
     assert_that(desc_a.originating_class).is_equal_to(FieldTypeTest)
     assert_that(desc_a.containing_class).is_equal_to(FieldTypeTest)
@@ -588,14 +588,14 @@ def test_fields_meta_a():
     ## ensure value
     assert_that(FieldTypeSubtest.field_c).is_equal_to(0)
 
-    sub_dtors = dict(([f.name, f] for f in each_field_descriptor(FieldTypeSubtest)))
+    sub_dtors = tuple((f.name for f in each_field_descriptor(FieldTypeSubtest)))
     assert_that("field_a" in sub_dtors).is_true()
     assert_that("field_b" in sub_dtors).is_true()
     assert_that("field_c" in sub_dtors).is_true()
 
-    sub_desc_a = sub_dtors["field_a"]
-    sub_desc_b = sub_dtors["field_b"]
-    sub_desc_c = sub_dtors["field_c"]
+    sub_desc_a = FieldTypeSubtest.__dict__["field_a"]
+    sub_desc_b = FieldTypeSubtest.__dict__["field_b"]
+    sub_desc_c = FieldTypeSubtest.__dict__["field_c"]
 
     ## ensure initialization of a Field descriptor inherited from a base class
     assert_that(sub_desc_a.originating_class).is_equal_to(FieldTypeTest)
@@ -629,9 +629,9 @@ def test_fields_meta_a():
     ## ensure field values are inherited via derive()
     assert_that(derived.field_a).is_equal_to(15)
     ## ensure field descriptors are inherited via derive()
-    derived_dtors = dict(([f.name, f] for f in each_field_descriptor(derived)))
+    derived_dtors = tuple((f.name for f in each_field_descriptor(derived)))
     assert_that("field_a" in derived_dtors).is_true()
-    derived_field_a = derived_dtors["field_a"]
+    derived_field_a = derived.__dict__["field_a"]
     ## ensure descriptors are initailized via derive()
     assert_that(derived_field_a.originating_class).is_equal_to(FieldTypeTest)
     assert_that(derived_field_a.containing_class).is_equal_to(derived)
