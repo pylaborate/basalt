@@ -1,8 +1,9 @@
 ## naming.py
 
-'''utilities for management of bound names'''
+"""utilities for management of bound names"""
 
 import sys
+from enum import Enum
 from types import ModuleType
 from typing import Generator, List, Optional, Sequence, Union
 from typing_extensions import Annotated, TypeAlias, TypeVar
@@ -41,51 +42,62 @@ def get_module(ident: ModuleArg) -> ModuleType:
         return ident
 
 
-def _name_gen(*objects) -> Generator[str, None, None]:
+def _name_gen(v_all: Optional[Sequence], *objects) -> Generator[str, None, None]:
     ## local generator for object names
+    ##
+    ## v_all:
+    ## : Either an existing __all__ attribute value from a module, or the
+    ##   value None
+    ##
+    ## objects
+    ## : sequence - string names, sequence values, or objects providing
+    ##   a __name__ attribute. This will be processed as described for
+    ##   `export`
+    ##
     for o in objects:
+        name = None
         if isinstance(o, str):
-            yield o
+            name = o
         elif isinstance(o, Sequence):
-            yield from _name_gen(*o)
+            yield from _name_gen(v_all, *o)
         elif hasattr(o, "__name__"):
-            yield o.__name__
+            name = o.__name__
         else:
             raise NameError(f"Unable to determine name for {o!r}", o)
+        if name is not None:
+            if (v_all is None) or (name not in v_all):
+                yield name
 
 
-def export(
-    module: ModuleArg, cache: List[str], obj, *objects
-) -> List[str]:
-    """export a list of attributes from a provided module
+def export(module: ModuleArg, obj, *objects) -> Sequence[str]:
+    """export a sequence of attributes from a provided module
 
     ## Syntax
 
     `module`
-     :   name of an existing module, or a module object
-
-    `cache`
-     :   intermediate storage for the export. This value  will be
-        destructively modified with `all.extend()` then set as the
-        value of the `__all__` attribute for the module.
+    :   name of an existing module, or a module object
 
     `obj` and each element in `objects`
-     :   objects for the export.
-     :   For each string, the value will  be used as provided.
-     :   For each sequence object, the object will be recursively
-          processed as for `export`
-     :   For each non-string and non-sequence object, the object
-          must provide a `__name__` attribute
+    :   objects for the export.
+    :   For each string object, the value will be used as provided.
+    :   For each sequence object, the object will be recursively
+        processed as for `export`
+    :   For each non-string, non-sequence object, the object
+        must provide a `__name__` attribute
 
     ## Usage
 
     This function will set the `__all__` attribute on the
-    denoted module by first extending the provided `all`
-    value then setting the module's `__all__` attribute to
-    that value.
+    denoted module by first extending the original `__all__`
+    value, if found. If the module does not provide an
+    `__all__` atribute at time of call, a new `__all__ value
+    will be set on the module, in the form of a list.
 
-    If the module's existing `__all__` value should be extended,
-    the value may be provided as the `all` parameter value.
+    If the module uses a non-list `__all__` attribute, this
+    function will endeavor to preserve the type of the original
+    value. It's assumed that the type would provide a constructor
+    accepting one argument, in the form of a list, representing
+    the elements of the sequence of that type.
 
     ## Exceptions
 
@@ -95,7 +107,9 @@ def export(
     - raises `ValueError` if any non-string item in `objects`
       does not define a `__name__` attribute
 
-    - raises `TypeError` if the `cache` value is not a list
+    ## See Also
+
+    - `export_enum`
 
     ## Examples
 
@@ -114,8 +128,7 @@ def export(
     def a_class():
         return AClass
 
-    __all__ = []
-    export(__name__, __all__, 'datum', AClass, a_class)
+    export(__name__, 'datum', AClass, a_class)
 
     ```
 
@@ -131,23 +144,28 @@ def export(
     from pylaborate.common_staging import export, module_all
 
     from .local import *
-    export(__name__, __all__, module_all(__name__ + ".local"))
+    export(__name__, module_all(__name__ + ".local"))
     ```
 
     """
     m = get_module(module)
-    if not isinstance(cache, List):
-        raise TypeError(f"In export for {m!r}, not a list: {cache!r}", m, cache)
     try:
-        # fmt: off
-        ext = _name_gen(obj, *objects)
-        # fmt: on
-        cache.extend(ext)
+        v_all = None
+        if hasattr(m, "__all__"):
+            v_all = m.__all__
+            names = _name_gen(v_all, obj, *objects)
+            if isinstance(v_all, List):
+                v_all.extend(names)
+            else:
+                all_list = list(v_all)
+                all_list.extend(names)
+                v_all = v_all.__class__(all_list)
+        else:
+            v_all = list(_name_gen(None, obj, *objects))
+        m.__all__ = v_all
+        return v_all
     except NameError as exc:
         raise ValueError(f"Unable to export symbols from {m!r}", m) from exc
-    ## using setattr, this may avoid a spurious type-check warning here:
-    setattr(m, "__all__", cache)
-    return cache
 
 
 T = TypeVar("T")
@@ -182,9 +200,60 @@ def module_all(
         return default
 
 
+def bind_enum(enum: Enum, module: ModuleArg):
+    """bind the member values of an enum class as constants within a module
+
+    See Also
+    - `export_enum`
+    """
+    ## may be useful for a @global_enum
+    m = get_module(module)
+    members = enum.__members__
+    for name in members:
+        item = members[name]
+        setattr(m, name, item.value)
+
+
+def export_enum(enum: Enum, module: ModuleArg) -> Sequence[str]:
+    """bind and export the member values of an enum class within a module
+
+    For each member field of the `enum`, with the field name
+    of a form `<name>`, this function will bind an attribute
+    `<name>` as the value of that `enum` field, within the
+    denoted `module`.
+
+    If the `enum` does not contain an element with a name
+    in the form of `<name>_T`, this function will also bind
+    the attribute `<name>_T` to the `enum` member field,
+    for the denoted `<name>`.
+
+    Lastly, this function will export each `<name>` and
+    `<name>_T` value and the name of the `enum` class, within
+    the `__all__` attribute of the denoted `module`
+
+    The return value will comprise a sequence of attribute
+    names, for attributes exported from the denoted module.
+
+    ## Implementation Notes
+
+    - If the module does not define an `__all__` attribute
+      at time of call, a new `__all__` attribute will be
+      initialized, as of a type `List`
+
+    ## See Also
+
+    - `export`
+    - `bind_enum`
+    """
+    m = get_module(module)
+    bind_enum(enum, module)
+    names = enum.__members__.keys()
+    return export(m, enum.__name__, *names)
+
+
 # autopep8: off
 # fmt: off
-__all__ = []  # type: ignore
-export(__name__, __all__,
-       NameError, 'ModuleArg', get_module, export, module_all
+export(__name__,
+       NameError, 'ModuleArg', get_module, export, module_all,
+       bind_enum, export_enum
        )
