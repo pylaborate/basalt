@@ -5,7 +5,7 @@
 import sys
 from enum import Enum
 from types import ModuleType
-from typing import Generator, List, Optional, Sequence, Union
+from typing import Any, Generator, List, Mapping, Optional, Sequence, Union
 from typing_extensions import Annotated, TypeAlias, TypeVar
 
 
@@ -250,10 +250,42 @@ def export_enum(enum: Enum, module: ModuleArg) -> Sequence[str]:
     names = enum.__members__.keys()
     return export(m, enum.__name__, *names)
 
+def origin_name(object) -> str:
+    if hasattr(object, "__name__"):
+        name = object.__name__
+        prefix = None
+        if hasattr(object, "__module__"):
+            m = object.__module__
+            if m != 'builtins':
+                prefix = origin_name(get_module(m))
+        if prefix:
+            return prefix + "." + name
+        else:
+            return name
+    else:
+        raise ValueError("Object does not provide a __name__: %s" % repr(object), object)
+
+def get_object(name: str, context: Any = sys.modules) -> Any:
+    _context = context
+    if isinstance(context, str):
+        _context = get_module(context)
+    data = name.split(".", 1)
+    n_data = len(data)
+    if n_data is int(0):
+        raise ValueError("Uncrecognized object name: %s" % repr(name), name)
+    elif n_data is int(1):
+        if isinstance(context, Mapping):
+            return _context.get(name)
+        else:
+            return getattr(_context, name)
+    else:
+        next_context = get_object(data[0], _context)
+        return get_object(data[1], next_context)
+
 
 # autopep8: off
 # fmt: off
 export(__name__,
        NameError, 'ModuleArg', get_module, export, module_all,
-       bind_enum, export_enum
+       bind_enum, export_enum, origin_name, get_object
        )

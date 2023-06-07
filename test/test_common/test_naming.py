@@ -8,7 +8,7 @@ from pytest import fixture, mark
 from random import randint
 import sys
 from types import ModuleType
-from typing import Generator, List, Sequence, Type
+from typing import Generator, Sequence, Type
 
 ## Notes
 ##
@@ -29,7 +29,6 @@ def suffix_int() -> int:
 
 @fixture
 def mock_module_name(suffix_int: int) -> str:
-    ## callable without a pytest warning about calling a @fixture function
     rndname = "tmp_%x" % suffix_int
     while rndname in sys.modules:
         rndname = "tmp_%x" % id(rndname)
@@ -163,3 +162,31 @@ def test_export_enum(mock_module):
     assert_that(MockConstB.__name__).is_in(*mock_all)
     for member in MockConstB.__members__:
         assert_that(member).is_in(*mock_all)
+
+
+@mark.dependency(depends=["test_get_module"])
+def test_origin_name(mock_module):
+    test_obj = mock_module_name
+    obj_name = test_obj.__name__
+    obj_expected_name = __name__ + "." + obj_name
+
+    ## test for origin name of a defined object
+    assert_that(subject.origin_name(test_obj)).is_equal_to(obj_expected_name)
+
+    ## test for origin name of an aliased object
+    sys.modules[mock_module.__name__] = mock_module
+    setattr(mock_module, obj_name, test_obj)
+    assert_that(subject.origin_name(getattr(mock_module, obj_name))).is_equal_to(
+        obj_expected_name
+    )
+
+    ## test for origin name of an object defined in builtins
+    assert_that(subject.origin_name(print)).is_equal_to("print")
+
+
+@mark.dependency(depends=["test_get_module"])
+def test_get_object():
+    ## test for the relative name of an object in builtins
+    assert_that(subject.get_object("print", "builtins")).is_in(print)
+    ## test for the name of a module
+    assert_that(subject.get_object(subject.__name__)).is_in(subject)
