@@ -1,6 +1,7 @@
 ## demap - pylaborate
 
 from collections import deque
+
 # from dataclasses import dataclass
 from itertools import chain
 import os
@@ -14,14 +15,18 @@ T = TypeVar("T")
 
 
 class DemapEntry(Generic[T]):
-    '''key and value storage for `Demap`'''
+    """key and value storage for `Demap`"""
+
     @property
     def key(self) -> str:
         return self._key
 
     @key.setter
     def key(self, new_value: str):
-        raise TypeError("Operation not supporteed: set key value in an initialized %s", self.__class__.__name__)
+        # fmt: off
+        raise TypeError("Operation not supporteed: set key value in an initialized %s",
+                        self.__class__.__name__)
+        # fmt: on
 
     @property
     def keyhash(self) -> int:
@@ -29,7 +34,10 @@ class DemapEntry(Generic[T]):
 
     @keyhash.setter
     def keyhash(self, new_value: int):
-        raise TypeError("Operationt not supported: set keyhash value in an initialized %s", self.__class__.__name__)
+        # fmt: off
+        raise TypeError("Operationt not supported: set keyhash value in an initialized %s",
+                        self.__class__.__name__)
+        # fmt: on
 
     @property
     def value(self) -> T:
@@ -45,16 +53,22 @@ class DemapEntry(Generic[T]):
         self._value = value
 
     def __repr__(self):
-        return "<%s at 0x%x %s = %s>" % (self.__class__.__name__, id(self), self.key, repr(self.value))
+        # fmt: off
+        return "<%s at 0x%x %s = %s>" % (self.__class__.__name__, id(self),
+                                         self.key, repr(self.value))
+        # fmt: on
 
     def __str__(self):
         return "%s(%r, %s)" % (self.__class__.__name__, self.key, repr(self.value))
 
 
 class Demap(Mapping[str, T]):
-    '''Mapping type based on a `deque`'''
+    """Mapping type based on a `deque`"""
 
-    def __init__(self, initial: Optional[Union[Mapping[str, T], Sequence[Sequence[str, T]]]] = None):
+    def __init__(
+        self,
+        initial: Optional[Union[Mapping[str, T], Sequence[Sequence[str, T]]]] = None,
+    ):
         initial_items = [False] * len(initial) if initial else ()
         n = 0
         if isinstance(initial, Mapping):
@@ -142,7 +156,11 @@ class Demap(Mapping[str, T]):
 
     def __repr__(self):
         keys = (item.key for item in self._que)
-        return "<%s at 0x%x (%s)>" % (self.__class__.__qualname__, id(self), ", ".join(keys))
+        # fmt: off
+        return "<%s at 0x%x (%s)>" % (self.__class__.__qualname__, id(self),
+                                      ", ".join(keys))
+        # fmt: on
+
 
 ## FIXME: Extend Demap for concurrent applications:
 ## - acquire a lock before each dispatch to super()
@@ -170,11 +188,10 @@ MkVarsSource: TypeAlias = Union[
 
 
 class MkVars(Demap[T]):
-    '''Mapping type for macro-like expansion of formatted string values'''
+    """Mapping type for macro-like expansion of formatted string values"""
 
     def __getattr__(self, name: str):
-        '''Implementation for attribute reference to the mapping table of this MkVars
-        '''
+        """Implementation for attribute-based reference to the mapping table of this MkVars"""
         try:
             return self.__getitem__(name)
         except KeyError:
@@ -187,8 +204,7 @@ class MkVars(Demap[T]):
         yield_items=False, genexpand: Callable[[Iterable], Any] = tuple
         # fmt: on
     ):
-        '''Process a `MkVarsSource` value for expansions from callbacks
-        and `str.format()`.
+        """Process a `MkVarsSource` value for expansions from callbacks and `str.format()`.
 
         If `kwargs` is None, `parse()` will use the mapping provided in
         the calling MkVars object.
@@ -299,7 +315,7 @@ class MkVars(Demap[T]):
         This function was designed after the semantics of string value
         expansion for Makefile expressions. This design has been adapted
         to accomodate a subset of object types available in Python 3.
-        '''
+        """
         ##
         ## Generator for expanding a MkVars source value
         ##
@@ -318,27 +334,25 @@ class MkVars(Demap[T]):
                 elts = [False] * n_elts
                 n = 0
                 for item in obj:
-                    for new in self.parse(item, kwargs):
-                        elts[n] = new
+                    for newmap in self.parse(item, kwargs):
+                        elts[n] = newmap
                     n = n + 1
                 yield obj.__class__(elts)
             case Mapping():
                 n = 0
                 if not yield_items:
-                    new = dict()
+                    newmap = dict()
                 for k in obj:
-                    for vnew in self.parse(obj[k], kwargs):
-                        ## DEBUG
-                        # print("Update %s => %r" % (k, vnew,))
+                    for expansion in self.parse(obj[k], kwargs):
                         if yield_items:
                             ## yield the key and new binding, such that the caller
-                            ## can update the provided kwargs map
-                            yield (k, vnew,)
+                            ## can update the containing object and kwargs map
+                            yield (k, expansion,)
                         else:
-                            new[k] = vnew
+                            newmap[k] = expansion
                             n = n + 1
                 if not yield_items:
-                    yield obj.__class__(new)
+                    yield obj.__class__(newmap)
             case Callable():
                 yield from self.parse(obj(), kwargs)
             case _:
@@ -346,7 +360,7 @@ class MkVars(Demap[T]):
             # fmt: on
 
     def setvars(self, **kwargs):
-        '''process and update this MkVars mapping, with string expansion
+        """process and update this MkVars mapping, with string expansion
 
         `setvars()` provides an interface onto `parse()`, such that the
         calling MkVars object will be successively updated for value
@@ -371,7 +385,7 @@ class MkVars(Demap[T]):
         This is not a reentrant function. If the parsing fails for any
         binding in `kwargs`, it should be assumed that the original
         MkVars mapping may not have been completely dereferenced.
-        '''
+        """
 
         ## pre-initialize values in the mock mapping, for variable expansion
         mock = self.copy()
@@ -384,7 +398,7 @@ class MkVars(Demap[T]):
             self[attr] = value
 
     def dup(self, **kwargs) -> Self:
-        '''return a copy of this MkVars, updated with string expansion per `kwargs`
+        """return a copy of this MkVars, updated with string expansion per `kwargs`
 
         This function provides an alternative to `setvars()` as an
         interface onto `parse()` not modifying the calling MkVars
@@ -409,7 +423,7 @@ class MkVars(Demap[T]):
         The return values for any callback functions within the mvkars
         mapping may be reflective of the stack environment of the
         calling object, rather than the newly initialized object copy.
-        '''
+        """
         mock = self.copy()
         mock.update(kwargs)
         for attr, value in self.parse(kwargs, mock, True):
@@ -418,7 +432,7 @@ class MkVars(Demap[T]):
 
     def value(self, source: MkVarsSource, genexpand: Callable[[Iterable], Any] = tuple):
         # return source.format(**self)
-        for item in self.parse(source, self, genexpand = genexpand):
+        for item in self.parse(source, self, genexpand=genexpand):
             return item
 
     def cmd(self, source: Union[str, Callable[[], str]]):
@@ -430,6 +444,7 @@ class MkVars(Demap[T]):
 ##
 
 import sys
+
 
 def optional_files(*files: Sequence[str]) -> Generator[str, None, None]:
     for pathname in files:
@@ -464,37 +479,32 @@ def run_test():
         venv_dir="env",
         env_cfg="{venv_dir}/pyvenv.cfg",
         pyproject_cfg="pyproject.toml",
+        # fmt: off
         requirements_in=optional_files("requirements.in"),
         requirements_local=optional_files("requirements.local"),
-        requirements_nop=optional_files("/nonexistent/requirements.txt"),  # test case, generator => empty tuple
+        # requirements_nop: test case - value source, generator => empty tuple
+        requirements_nop=optional_files("/nonexistent/requirements.txt"),
         requirements_txt="requirements.txt",
-
-        # fmt: off
         requirements_depends=lambda: (mkv.pyproject_cfg, *mkv.requirements_nop, *mkv.requirements_in, *mkv.requirements_local,),
         # fmt: on
-
         project_py="project.py",
         pyproject_extras=("dev",),
         homedir=os.path.expanduser("~"),
         pip_cache="{homedir}/.cache/pip",
-
         ## beta tests for mkvars (FIXME move to test dirs)
         beta_dct=dict(a="{pip_cache}", b="{project_py}"),
         beta_int=51,
-
         pip_options="--no-build-isolation -v --cache-dir={pip_cache!r}",
         # fmt: off
         opt_extras=lambda: " ".join("--extra {opt}".format(opt = opt) for opt in mkv.pyproject_extras),
         pip_compile_options='--cache-dir={pip_cache!r} --resolver=backtracking -v --pip-args {pip_options!r} {opt_extras}',
         # fmt: on
         pip_sync_options="-v --ask --pip-args {pip_options!r}",
-
         env_bindir=lambda: get_venv_bindir(mkv.venv_dir),
         env_pip="{env_bindir}/pip",
         env_pip_compile="{env_bindir}/pip-compile",
         pip_compile_depends=lambda: ("{env_pip_compile}", *mkv.requirements_depends),
-
-        home_path=Path("~")
+        home_path=Path("~"),
     )
 
     return mkv
