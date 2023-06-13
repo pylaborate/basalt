@@ -24,3 +24,6 @@ export(__name__, module_all(__name__ + ".aio"))  # NOQA: F405
 
 from .io import *  # NOQA E402
 export(__name__, module_all(__name__ + ".io"))  # NOQA: F405
+
+from .iterlib import *  # NOQA E402
+export(__name__, module_all(__name__ + ".iterlib"))  # NOQA: F405

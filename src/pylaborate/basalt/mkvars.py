@@ -1,178 +1,26 @@
-## demap - pylaborate
+## mkvars - pylaborate.basalt
+"""String macro expansion for Python, in a Make-like syntax"""
 
-from collections import deque
+from collections import UserDict
+from collections.abc import Callable, Generator, Mapping, Sequence
 
-# from dataclasses import dataclass
+from dataclasses import dataclass, field
+
 from itertools import chain
 import os
 from pathlib import Path
 import shlex
-from typing import Any, Generic, Optional, Union
+import sys
+
+from typing import Any, Iterable, Optional, Union
+
 from typing_extensions import Self, TypeAlias, TypeVar
-from collections.abc import Callable, Generator, Iterable, Sequence, Mapping
 
-T = TypeVar("T")
-
-
-class DemapEntry(Generic[T]):
-    """key and value storage for `Demap`"""
-
-    @property
-    def key(self) -> str:
-        return self._key
-
-    @key.setter
-    def key(self, new_value: str):
-        # fmt: off
-        raise TypeError("Operation not supporteed: set key value in an initialized %s",
-                        self.__class__.__name__)
-        # fmt: on
-
-    @property
-    def keyhash(self) -> int:
-        return self._keyhash
-
-    @keyhash.setter
-    def keyhash(self, new_value: int):
-        # fmt: off
-        raise TypeError("Operationt not supported: set keyhash value in an initialized %s",
-                        self.__class__.__name__)
-        # fmt: on
-
-    @property
-    def value(self) -> T:
-        return self._value
-
-    @value.setter
-    def value(self, new_value: T):
-        self._value = new_value
-
-    def __init__(self, key: str, value: T):
-        self._key = key
-        self._keyhash = hash(key)
-        self._value = value
-
-    def __repr__(self):
-        # fmt: off
-        return "<%s at 0x%x %s = %s>" % (self.__class__.__name__, id(self),
-                                         self.key, repr(self.value))
-        # fmt: on
-
-    def __str__(self):
-        return "%s(%r, %s)" % (self.__class__.__name__, self.key, repr(self.value))
-
-
-class Demap(Mapping[str, T]):
-    """Mapping type based on a `deque`"""
-
-    def __init__(
-        self,
-        initial: Optional[Union[Mapping[str, T], Sequence[Sequence[str, T]]]] = None,
-    ):
-        initial_items = [False] * len(initial) if initial else ()
-        n = 0
-        if isinstance(initial, Mapping):
-            for key in initial:
-                initial_items[n] = DemapEntry(key, initial[key])
-                n = n + 1
-        elif isinstance(initial, Sequence):
-            for key, value in initial:
-                initial_items[n] = DemapEntry(key, value)
-                n = n + 1
-        self._que = deque(initial_items)
-
-    def __copy__(self):
-        q = self._que
-        cache = [[False, False]] * len(q)
-        n = 0
-        for item in q:
-            nth = cache[n]
-            nth[0] = item.key()
-            nth[1] = item.value()
-        return self.__class__(cache)
-
-    def copy(self):
-        return self.__copy__()
-
-    def update(self, mapping):
-        if isinstance(mapping, Mapping):
-            for key in mapping:
-                self[key] = mapping[key]
-        elif isinstance(mapping, Sequence):
-            for key, value in mapping:
-                self[key] = value
-
-    def __missing__(self, key: str):
-        raise KeyError("Key not found", key, self)
-
-    def __contains__(self, key: str):
-        try:
-            self.__getitem__(key)
-            return True
-        except KeyError:
-            return False
-
-    def _each_queued(self, key: str):
-        ## reusable iterator for __getitem__ and __setitem__
-        h = hash(key)
-        q = self._que
-        for item in q:
-            if item.keyhash == h:
-                yield item
-
-    def __getitem__(self, key: Union[str, int]) -> T:
-        for first in self._each_queued(key):
-            return first.value
-        self.__missing__(key)
-
-    def __setitem__(self, key: str, value: T):
-        for first in self._each_queued(key):
-            first.value = value
-            return
-        ## not found:
-        self._que.append(DemapEntry(key, value))
-
-    def __delitem__(self, key: str):
-        try:
-            item = self.__getitem__(key)
-            self._que.remove(item)
-            return True
-        except KeyError:
-            return False
-
-    def pop(self, key: str) -> T:
-        self.__delitem__(key)
-
-    def __iter__(self):
-        for item in self._que:
-            yield item.key
-
-    def __len__(self):
-        len(self._que)
-
-    def __str__(self):
-        keys = (item.key for item in self._que)
-        return "%s(%s)" % (self.__class__.__qualname__, ", ".join(keys))
-
-    def __repr__(self):
-        keys = (item.key for item in self._que)
-        # fmt: off
-        return "<%s at 0x%x (%s)>" % (self.__class__.__qualname__, id(self),
-                                      ", ".join(keys))
-        # fmt: on
-
-
-## FIXME: Extend Demap for concurrent applications:
-## - acquire a lock before each dispatch to super()
-## - SyncDemap, using a threading lock
-## - AsyncDemap, using an aio lock
-## - implement tests
-
+from pylaborate.common_staging.demap import Demap
 
 ##
-## MkVars extension onto Demap
+## Types
 ##
-
 
 # fmt: off
 MkVarsMap: TypeAlias = Union[Mapping[str, "MkVarsSource"], "MkVars"]
@@ -183,20 +31,43 @@ MkVarsSource: TypeAlias = Union[
 ]
 # fmt: on
 
+##
+## MkVars
+##
+
 # class MkVarsEntry(DemapEntry):
 #     callback: Callable[[], "MkVarsSource"]
 
-
-class MkVars(Demap[T]):
+@dataclass
+#class MkVars(Demap[str]):
+class MkVars(UserDict[str, MkVarsSource]):
     """Mapping type for macro-like expansion of formatted string values"""
+
+    mapping: MkVarsSource = field(default_factory = dict)
 
     def __getattr__(self, name: str):
         """Implementation for attribute-based reference to the mapping table of this MkVars"""
+        ## FIXME also implement __delattr__
+        ## FIXME move to AttrMap (common_staging)
         try:
-            return self.__getitem__(name)
+            # return self.__getitem__(name)
+            return self.mapping.__getitem__(name)
         except KeyError:
             ## TBD dispatch under os.environ
             raise AttributeError("Attribute not found", name, self)
+
+    # def __len__(self):
+    #     return len(self.mapping)
+
+    @property
+    def data(self):
+        ## for UserDict
+        return self.mapping
+
+    def copy(self):
+        m = self.mapping.copy()
+        new = self.__class__(m)
+        return new
 
     def parse(
         # fmt: off
@@ -440,10 +311,8 @@ class MkVars(Demap[T]):
 
 
 ##
-## Tests
+## mkvars utility functions
 ##
-
-import sys
 
 
 def optional_files(*files: Sequence[str]) -> Generator[str, None, None]:
@@ -468,43 +337,3 @@ def get_venv_bindir(venv_dir: str) -> str:
         return os.path.join(venv_dir, "Scripts")
     else:
         return os.path.join(venv_dir, "bin")
-
-
-def run_test():
-    mkv = MkVars()
-    mkv.setvars(
-        build_dir="build",
-        stampdir="{build_dir}/.build_stamp",
-        host_python="python3",
-        venv_dir="env",
-        env_cfg="{venv_dir}/pyvenv.cfg",
-        pyproject_cfg="pyproject.toml",
-        # fmt: off
-        requirements_in=optional_files("requirements.in"),
-        requirements_local=optional_files("requirements.local"),
-        # requirements_nop: test case - value source, generator => empty tuple
-        requirements_nop=optional_files("/nonexistent/requirements.txt"),
-        requirements_txt="requirements.txt",
-        requirements_depends=lambda: (mkv.pyproject_cfg, *mkv.requirements_nop, *mkv.requirements_in, *mkv.requirements_local,),
-        # fmt: on
-        project_py="project.py",
-        pyproject_extras=("dev",),
-        homedir=os.path.expanduser("~"),
-        pip_cache="{homedir}/.cache/pip",
-        ## beta tests for mkvars (FIXME move to test dirs)
-        beta_dct=dict(a="{pip_cache}", b="{project_py}"),
-        beta_int=51,
-        pip_options="--no-build-isolation -v --cache-dir={pip_cache!r}",
-        # fmt: off
-        opt_extras=lambda: " ".join("--extra {opt}".format(opt = opt) for opt in mkv.pyproject_extras),
-        pip_compile_options='--cache-dir={pip_cache!r} --resolver=backtracking -v --pip-args {pip_options!r} {opt_extras}',
-        # fmt: on
-        pip_sync_options="-v --ask --pip-args {pip_options!r}",
-        env_bindir=lambda: get_venv_bindir(mkv.venv_dir),
-        env_pip="{env_bindir}/pip",
-        env_pip_compile="{env_bindir}/pip-compile",
-        pip_compile_depends=lambda: ("{env_pip_compile}", *mkv.requirements_depends),
-        home_path=Path("~"),
-    )
-
-    return mkv
