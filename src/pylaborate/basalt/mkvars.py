@@ -7,6 +7,7 @@ from collections.abc import Callable, Generator, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from itertools import chain
+from numbers import Number
 import os
 from pathlib import Path
 import shlex
@@ -14,59 +15,63 @@ import sys
 
 from typing import Any, Iterable, Optional, Union
 
-from typing_extensions import Self, TypeAlias, TypeVar
+from typing_extensions import Self, TypeAlias
 
 ##
 ## Types
 ##
 
 # fmt: off
-MkVarsMap: TypeAlias = Union[Mapping[str, "MkVarsSource"], "MkVars"]
+
+MkVarsMap: TypeAlias = Mapping[str, "MkVarsSource"]
+
 
 MkVarsSource: TypeAlias = Union[
-    str, MkVarsMap, Iterable["MkVarsSource"], Sequence["MkVarsSource"],
-    Callable[[], "MkVarsSource"]
+    str, Number, Path, MkVarsMap, Sequence["MkVarsSource"], Callable[[], "MkVarsSource"]
 ]
+MkVarsValue: TypeAlias = Union[
+    str, Number, Mapping[str, "MkVarsValue"], Sequence["MkVarsValue"]
+]
+
 # fmt: on
+
 
 ##
 ## MkVars
 ##
 
+
 @dataclass
 class MkVars(UserDict[str, MkVarsSource]):
     """Mapping type for macro-like expansion of formatted string values"""
 
-    mapping: MkVarsSource = field(default_factory = dict)
+    mapping: Mapping[str, MkVarsSource] = field(default_factory = dict)
+    genexpand: Callable[[Iterable[MkVarsValue]], MkVarsValue] = tuple
 
     def __getattr__(self, name: str):
         """Implementation for attribute-based reference to the mapping table of this MkVars"""
-        ## FIXME also implement __delattr__
-        ## FIXME move to AttrMap (common_staging)
         try:
-            # return self.__getitem__(name)
+            ## TBD dispatch with any bound value for 'name' from os.environ
             return self.mapping.__getitem__(name)
         except KeyError:
-            ## TBD dispatch under os.environ
             raise AttributeError("Attribute not found", name, self)
 
-    # def __len__(self):
-    #     return len(self.mapping)
+    def __len__(self):
+        return len(self.mapping)
+
+    def copy(self):
+        newmap = self.mapping.copy()
+        return self.__class__(mapping = newmap, genexpand=self.genexpand)
 
     @property
     def data(self):
-        ## for UserDict
+        ## for the UserDict API
         return self.mapping
-
-    def copy(self):
-        m = self.mapping.copy()
-        new = self.__class__(m)
-        return new
 
     def parse(
         # fmt: off
         self, obj: MkVarsSource, kwargs: Optional[MkVarsMap] = None,
-        yield_items=False, genexpand: Callable[[Iterable], Any] = tuple
+        yield_items=False, genexpand: Optional[Callable[[Iterable], Any]] = None
         # fmt: on
     ):
         """Process a `MkVarsSource` value for expansions from callbacks and `str.format()`.
@@ -193,7 +198,8 @@ class MkVars(UserDict[str, MkVarsSource]):
             case Path():
                 yield str(obj.expanduser())
             case Generator():
-                yield genexpand(chain.from_iterable(self.parse(elt, kwargs) for elt in obj))
+                expand = genexpand if genexpand else self.genexpand
+                yield expand(chain.from_iterable(self.parse(elt, kwargs, genexpand=genexpand) for elt in obj))
             case Sequence():
                 n_elts = len(obj)
                 elts = [False] * n_elts
@@ -253,14 +259,15 @@ class MkVars(UserDict[str, MkVarsSource]):
         """
 
         ## pre-initialize values in the mock mapping, for variable expansion
-        mock = self.copy()
-        ## apply all kwargs to the mock. This object will be used as an
-        ## ephemeral mapping in the call to parse()
+        mapping = self.mapping
+        mock = mapping.copy()
+        ## apply all kwargs to the mock
         mock.update(kwargs)
-        ## update the mapping in the calling object and in the kwargs source
-        for attr, value in self.parse(kwargs, mock, True):
-            mock[attr] = value
-            self[attr] = value
+        ## parse the updated mock, updating the mock and this MkVars
+        genexpand = self.genexpand
+        for key, value in self.parse(mock, kwargs, True, genexpand = genexpand):
+            mock[key] = value
+            self[key] = value
 
     def dup(self, **kwargs) -> Self:
         """return a copy of this MkVars, updated with string expansion per `kwargs`
@@ -291,6 +298,7 @@ class MkVars(UserDict[str, MkVarsSource]):
         """
         mock = self.copy()
         mock.update(kwargs)
+        ## parse and return the mock
         for attr, value in self.parse(kwargs, mock, True):
             mock[attr] = value
         return mock

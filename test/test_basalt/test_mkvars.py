@@ -1,14 +1,11 @@
 from assertpy import assert_that
-from datetime import datetime
 import os
 from pathlib import Path
-from pylaborate.common_staging import first, last
 from pytest import fixture, mark
-
-from typing import Sequence, Generator
 
 from pylaborate.basalt.mkvars import optional_files, get_venv_bindir
 import pylaborate.basalt.mkvars as subject
+
 
 def test_setvars():
     mkv = subject.MkVars()
@@ -52,7 +49,10 @@ def test_setvars():
         beta_int=51,
     )
 
-    assert_that(mkv['stampdir']).is_equal_to("{build_dir}/.build_stamp".format(**mkv))
+    ## test string expansion
+    assert_that(mkv["stampdir"]).is_equal_to("{build_dir}/.build_stamp".format(**mkv))
+    ## test generator expansion
+    assert_that(mkv["requirements_depends"]).contains("requirements.in")
 
     # return mkv
 
