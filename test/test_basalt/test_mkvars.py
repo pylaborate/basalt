@@ -10,7 +10,6 @@ from typing import Sequence, Generator
 from pylaborate.basalt.mkvars import optional_files, get_venv_bindir
 import pylaborate.basalt.mkvars as subject
 
-## depends on: demap test ...
 def test_setvars():
     mkv = subject.MkVars()
 
@@ -56,7 +55,4 @@ def test_setvars():
     assert_that(mkv['stampdir']).is_equal_to("{build_dir}/.build_stamp".format(**mkv))
 
     # return mkv
-
-#if __name__ == "__main__":
-#    test_demap(count.__pytest_wrapped__.obj(), demap.__pytest_wrapped__.obj())
 

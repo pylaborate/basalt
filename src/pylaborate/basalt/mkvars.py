@@ -16,8 +16,6 @@ from typing import Any, Iterable, Optional, Union
 
 from typing_extensions import Self, TypeAlias, TypeVar
 
-from pylaborate.common_staging.demap import Demap
-
 ##
 ## Types
 ##
@@ -35,11 +33,7 @@ MkVarsSource: TypeAlias = Union[
 ## MkVars
 ##
 
-# class MkVarsEntry(DemapEntry):
-#     callback: Callable[[], "MkVarsSource"]
-
 @dataclass
-#class MkVars(Demap[str]):
 class MkVars(UserDict[str, MkVarsSource]):
     """Mapping type for macro-like expansion of formatted string values"""
 
