@@ -10,7 +10,7 @@ import pylaborate.basalt.mkvars as subject
 def test_setvars():
     mkv = subject.MkVars()
 
-    mkv.setvars(
+    mkv.define(
         ## test data translated from a project Makefile (env.mk)
 
         build_dir="build",
@@ -45,14 +45,61 @@ def test_setvars():
 
         ## additional test data
         home_path=Path("~"),
-        beta_dct=dict(a="{pip_cache}", b="{project_py}"),
-        beta_int=51,
+        mapped_dct=dict(a="{pip_cache}", b="{project_py}"),
+        mapped_int=51,
     )
 
-    ## test string expansion
-    assert_that(mkv["stampdir"]).is_equal_to("{build_dir}/.build_stamp".format(**mkv))
-    ## test generator expansion
-    assert_that(mkv["requirements_depends"]).contains("requirements.in")
+    print("! TEST mkvars values => " + repr(tuple(v for v in mkv.values())))
+    print("! TEST mkvars items => " + repr(tuple((k, v,) for k, v in mkv.items())))
 
-    # return mkv
+    mkdup = mkv.dup()
+
+    ## test value expansion for sources after MkVars.define()
+    assert_that(mkdup.stampdir).is_equal_to("{build_dir}/.build_stamp".format_map(mkv))
+    assert_that(mkdup.value(mkdup.stampdir)).is_equal_to("{build_dir}/.build_stamp".format_map(mkv))
+    assert_that(mkv.stampdir).is_equal_to("{build_dir}/.build_stamp".format_map(mkv))
+    assert_that(mkv.value(mkv.stampdir)).is_equal_to("{build_dir}/.build_stamp".format_map(mkv))
+
+    assert_that(mkv['stampdir']).is_equal_to("{build_dir}/.build_stamp".format_map(mkv))
+    assert_that(mkdup['stampdir']).is_equal_to("{build_dir}/.build_stamp".format_map(mkv))
+
+    ## test generator expansion
+
+    assert_that(mkdup.requirements_depends).contains("requirements.in")
+    assert_that(mkdup['requirements_depends']).contains("requirements.in")
+
+    assert_that(mkv.requirements_depends).contains("requirements.in")
+    assert_that(mkv['requirements_depends']).contains("requirements.in")
+
+    ## test dict expansion
+    assert_that(mkdup.mapped_dct.keys()).contains("a", "b")
+    for value in mkdup.mapped_dct.values():
+        assert_that(isinstance(value, str)).is_true()
+        assert_that("{" in value).is_false()
+    assert_that(mkdup.mapped_dct['a']).is_equal_to("{pip_cache}".format_map(mkdup))
+    assert_that(mkdup.mapped_dct['b']).is_equal_to("{project_py}".format_map(mkdup))
+
+    assert_that(mkv.mapped_dct.keys()).contains("a", "b")
+    for value in mkv.mapped_dct.values():
+        assert_that(isinstance(value, str)).is_true()
+        assert_that("{" in value).is_false()
+    assert_that(mkv.mapped_dct['a']).is_equal_to("{pip_cache}".format_map(mkv))
+    assert_that(mkv.mapped_dct['b']).is_equal_to("{project_py}".format_map(mkv))
+
+    ## re-test after reset()
+    mkv.reset()
+    mkdup.reset()
+
+    assert_that(mkdup.value(mkdup.stampdir)).is_equal_to("{build_dir}/.build_stamp".format(**mkv))
+    assert_that(mkv.value(mkv.stampdir)).is_equal_to("{build_dir}/.build_stamp".format(**mkv))
+    assert_that(mkv['stampdir']).is_equal_to("{build_dir}/.build_stamp".format(**mkv))
+    assert_that(mkdup['stampdir']).is_equal_to("{build_dir}/.build_stamp".format(**mkv))
+
+    assert_that(mkdup.requirements_depends).contains("requirements.in")
+    assert_that(mkdup['requirements_depends']).contains("requirements.in")
+    assert_that(mkv.requirements_depends).contains("requirements.in")
+    assert_that(mkv['requirements_depends']).contains("requirements.in")
+
+
+
 

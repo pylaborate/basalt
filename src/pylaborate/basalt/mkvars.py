@@ -2,19 +2,16 @@
 """String macro expansion for Python, in a Make-like syntax"""
 
 from collections import UserDict
-from collections.abc import Callable, Generator, Mapping, Sequence
-
+from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-
-from itertools import chain
+# from itertools import chain
 from numbers import Number
 import os
 from pathlib import Path
 import shlex
 import sys
 
-from typing import Any, Iterable, Optional, Union
-
+from typing import Any, Optional, Union
 from typing_extensions import Self, TypeAlias
 
 ##
@@ -35,6 +32,59 @@ MkVarsValue: TypeAlias = Union[
 
 # fmt: on
 
+@dataclass
+class MkFormatter:
+    key: str
+    source: MkVarsSource
+    mapping: "MkVars"
+    expansion: Optional[str] = None
+
+
+    def parse(self, kwargs = None, genexpand: Callable[[Sequence[MkVarsValue]], MkVarsValue] = tuple) -> MkVarsValue:
+        self.log_debug("MKFORMATTER PARSE %s %s", self.key, repr(self.source))
+        expansion = self.expansion
+        if expansion:
+            self.log_trace("MKFORMATTER CACHED %s", repr(expansion))
+            return expansion
+        else:
+            source = self.source
+            if isinstance(source, str) and "{" not in source:
+                expansion = source
+            else:
+                kw = kwargs if kwargs else self.mapping.mapping
+                expansion = self.mapping.parse(source, kw, genexpand=genexpand)
+            self.expansion = expansion
+            self.log_trace("MKFORMATTER PARSED %s", repr(expansion))
+            return expansion
+
+    def update(self, source: MkVarsSource):
+        self.source = source
+        self.expansion = None
+
+    def reset(self):
+        self.log_trace("RESET %r", self)
+        self.expansion = None
+
+    def log_debug(self, message, *args):
+        self.mapping.log_debug(message, *args)
+
+    def log_trace(self, message, *args):
+        self.mapping.log_trace(message, *args)
+
+    def __iter__(self):
+        source = self.source
+        if isinstance(source, Iterable):
+            yield from self.source
+        else:
+            raise TypeError("Not an iterable source", source, self)
+
+    def __len__(self):
+        source = self.source
+        if isinstance(source, Iterable):
+            return len(source)
+        else:
+            raise TypeError("Not an iterable source", source, self)
+
 
 ##
 ## MkVars
@@ -48,33 +98,71 @@ class MkVars(UserDict[str, MkVarsSource]):
     mapping: Mapping[str, MkVarsSource] = field(default_factory = dict)
     genexpand: Callable[[Iterable[MkVarsValue]], MkVarsValue] = tuple
 
+    def __str__(self):
+        return "<%s (%s)>" % (self.__class__.__qualname__, ", ".join(self.keys()))
+
+    def __repr__(self):
+        return "<%s at 0x%x (%s)>" % (self.__class__.__qualname__, id(self), ", ".join(self.keys()))
+
     def __getattr__(self, name: str):
         """Implementation for attribute-based reference to the mapping table of this MkVars"""
+        self.log_debug("GETATTR %s", name)
         try:
-            ## TBD dispatch with any bound value for 'name' from os.environ
-            return self.mapping.__getitem__(name)
+            mapped = self.__getitem__(name)
         except KeyError:
             raise AttributeError("Attribute not found", name, self)
+        return mapped
 
-    def __len__(self):
-        return len(self.mapping)
+    def __getitem__(self, name: str):
+        self.log_debug("GETITEM %s", name)
+        sup = super().__getitem__(name)
+        if isinstance(sup, MkFormatter):
+            return sup.parse(self.mapping)
+        else:
+            return sup
+
+    def __setitem__(self, key: str, value):
+        self.log_debug("SETITEM %s  => %s", key, value)
+        if isinstance(value, MkFormatter):
+            formatter = value
+        else:
+            formatter = MkFormatter(key, value, self)
+        super().__setitem__(key, formatter)
 
     def copy(self):
         newmap = self.mapping.copy()
-        return self.__class__(mapping = newmap, genexpand=self.genexpand)
+        inst = self.__class__(mapping = newmap, genexpand=self.genexpand)
+        self.log_trace("COPY %s", self, inst)
+        return inst
+
+    def reset(self):
+        self.log_trace("RESET %s", self)
+        for value in self.values():
+            if isinstance(value, MkFormatter):
+                value.reset()
 
     @property
     def data(self):
         ## for the UserDict API
         return self.mapping
 
+    def log_debug(self, message, *args):
+        print("! %x " % id(self) + message % args)
+
+    def log_trace(self, message, *args):
+        print("! %x .. " % id(self) + message % args)
+
     def parse(
         # fmt: off
         self, obj: MkVarsSource, kwargs: Optional[MkVarsMap] = None,
-        yield_items=False, genexpand: Optional[Callable[[Iterable], Any]] = None
+        return_items=False, genexpand: Optional[Callable[[Iterable], Any]] = None
         # fmt: on
     ):
         """Process a `MkVarsSource` value for expansions from callbacks and `str.format()`.
+
+        Ed. Note: This docstring applies to an earlier revision of `parse()`
+        using a generator semantics. `parse()` has been updated to directly
+        return each parsed value.
 
         If `kwargs` is None, `parse()` will use the mapping provided in
         the calling MkVars object.
@@ -187,47 +275,75 @@ class MkVars(UserDict[str, MkVarsSource]):
         to accomodate a subset of object types available in Python 3.
         """
         ##
-        ## Generator for expanding a MkVars source value
+        ## expand a MkVars source value
         ##
         if kwargs is None:
             kwargs = self
+
+        self.log_trace("PARSE %s", repr(obj))
+
         match obj:
             # fmt: off
             case str():
-                yield obj.format(**kwargs)
+                if "{" in obj:
+                    return obj.format_map(kwargs)
+                else:
+                    return obj
+            case MkFormatter():
+                return obj.parse(self, genexpand = genexpand)
             case Path():
-                yield str(obj.expanduser())
+                return str(obj.expanduser())
             case Generator():
                 expand = genexpand if genexpand else self.genexpand
-                yield expand(chain.from_iterable(self.parse(elt, kwargs, genexpand=genexpand) for elt in obj))
+                self.log_trace("PARSEGEN %s", repr(obj))
+                value = expand(obj)
+                self.log_trace("PARSEGEN => %s", repr(value))
+                return value
+
             case Sequence():
                 n_elts = len(obj)
                 elts = [False] * n_elts
                 n = 0
                 for item in obj:
-                    for newmap in self.parse(item, kwargs):
-                        elts[n] = newmap
+                    elts[n] = self.parse(item, kwargs)
+                    self.log_trace("PARSEQ [%d] %s => %s", n, item, elts[n])
                     n = n + 1
-                yield obj.__class__(elts)
+                return obj.__class__(elts)
             case Mapping():
                 n = 0
-                if not yield_items:
+                ## Implementation note: basis for the earlier parse-as-generator semantics
+                # if not yield_items:
+                #     newmap = dict()
+                # for k in obj:
+                #     for expansion in self.parse(obj[k], kwargs):
+                #         if yield_items:
+                #             ## yield the key and new binding, such that the caller
+                #             ## can update the containing object and kwargs map
+                #             yield (k, expansion,)
+                #         else:
+                #             newmap[k] = expansion
+                #             n = n + 1
+                # if not yield_items:
+                #     yield obj.__class__(newmap)
+                if return_items:
+                    newmap = [False] * len(obj)
+                else:
                     newmap = dict()
-                for k in obj:
-                    for expansion in self.parse(obj[k], kwargs):
-                        if yield_items:
-                            ## yield the key and new binding, such that the caller
-                            ## can update the containing object and kwargs map
-                            yield (k, expansion,)
-                        else:
-                            newmap[k] = expansion
-                            n = n + 1
-                if not yield_items:
-                    yield obj.__class__(newmap)
+                for k, v in obj.items():
+                    expansion = self.parse(v, kwargs, genexpand = genexpand)
+                    if return_items:
+                        newmap[n] = (k, expansion,)
+                        n = n + 1
+                    else:
+                        newmap[k] = expansion
+                if return_items:
+                    return newmap
+                else:
+                    return obj.__class__(newmap)
             case Callable():
-                yield from self.parse(obj(), kwargs)
+                return self.parse(obj(), kwargs)
             case _:
-                yield obj
+                return obj
             # fmt: on
 
     def setvars(self, **kwargs):
@@ -259,13 +375,16 @@ class MkVars(UserDict[str, MkVarsSource]):
         """
 
         ## pre-initialize values in the mock mapping, for variable expansion
-        mapping = self.mapping
-        mock = mapping.copy()
+        mock = self.mapping.copy()
         ## apply all kwargs to the mock
         mock.update(kwargs)
         ## parse the updated mock, updating the mock and this MkVars
         genexpand = self.genexpand
-        for key, value in self.parse(mock, kwargs, True, genexpand = genexpand):
+        self.log_debug("SETVARS %s <= %s", self, mock)
+        for key, source in self.items():
+            self.log_trace("SETVARS %s %s", key, source)
+            value = self.parse(source, mock, True, genexpand=genexpand)
+            self.log_trace("SETVARS %s => %s", key, repr(value))
             mock[key] = value
             self[key] = value
 
@@ -296,19 +415,33 @@ class MkVars(UserDict[str, MkVarsSource]):
         mapping may be reflective of the stack environment of the
         calling object, rather than the newly initialized object copy.
         """
-        mock = self.copy()
+        mock = self.mapping.copy()
         mock.update(kwargs)
         ## parse and return the mock
-        for attr, value in self.parse(kwargs, mock, True):
+        genexpand = self.genexpand
+        self.log_debug("DUP %s => %s", self, mock)
+        for attr, source in mock.items():
+            self.log_trace("DUP %s %s", attr, source)
+            value = self.parse(source, mock, True, genexpand = genexpand)
+            self.log_trace("DUP %s => %s", attr, repr(value))
             mock[attr] = value
-        return mock
+        return self.__class__(mock, self.genexpand)
 
-    def value(self, source: MkVarsSource, genexpand: Callable[[Iterable], Any] = tuple):
-        # return source.format(**self)
-        for item in self.parse(source, self, genexpand=genexpand):
-            return item
+    def define(self, **values):
+        self.log_debug("DEFINE %s", repr(values))
+        return self.update(values)
+
+    def update(self, *args, **values):
+        self.log_debug("UPDATE %s %s", repr(args), repr(values))
+        self.reset()
+        return super().update(*args, **values)
+
+    def value(self, source: MkVarsSource):
+        self.log_debug("VALUE %s", repr(source))
+        return self.parse(source, self)
 
     def cmd(self, source: Union[str, Callable[[], str]]):
+        self.log_debug("CMD %s", repr(source))
         return shlex.split(self.value(source))
 
 
