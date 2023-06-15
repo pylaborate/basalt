@@ -4,6 +4,7 @@
 
 import sys
 from enum import Enum
+from textwrap import shorten
 from types import ModuleType
 from typing import Any, Generator, List, Mapping, Optional, Sequence, Union
 from typing_extensions import Annotated, TypeAlias, TypeVar
@@ -294,23 +295,59 @@ def origin_name(object) -> str:
     else:
         raise ValueError("Object does not provide a __name__: %s" % repr(object), object)
 
-def get_object(name: str, context: Any = sys.modules) -> Any:
-    ## tentative utility function
-    _context = context
-    if isinstance(context, str):
-        _context = get_module(context)
-    data = name.split(".", 1)
-    n_data = len(data)
-    if n_data is int(0):
+def get_object(name: str, context: Any = None) -> Any:
+    '''generalized object locator
+
+    ## Usage
+
+    `name`
+    : Name of a referenced object; May be delimited with one or more full
+      stop characters, `"."`
+
+    `context`
+    : Context for the search. If `None`, the object search will begin at
+      `sys.modules`. If a mapping, the search will be constrained to
+       that mapping. If a module, class, or other object providing an
+       attribute context, the name will be interpreted as relative to
+       that object.
+
+    ## Known Limitations
+
+    For a search within a mapping `context`, it's assumed that each name
+    at a level of reference within the mapping will be delimited by a
+    full stop character. If a key in the mapping contains `"."`, then
+    `get_object()` may not be able to locate an object under that key.
+
+    For locating an object within a module, the module should be
+    provided directly as the `context`, e.g using `get_module()`
+
+    ## Exceptions
+
+    Raises `ValueError` when no object can be found for the provided
+    `name`, within the denoted `context`
+
+    Raises `NameError` when `context` is provided as a string and no
+    module can be located for that module name
+    '''
+    ctx = context
+    if context is None:
+        ctx = sys.modules
+    elts = name.split(".", 1)
+    n_elts = len(elts)
+    if n_elts is int(0):
         raise ValueError("Uncrecognized object name: %s" % repr(name), name)
-    elif n_data is int(1):
+    elif n_elts is int(1):
         if isinstance(context, Mapping):
-            return _context.get(name)
+            return ctx.get(name)
         else:
-            return getattr(_context, name)
+            if hasattr(ctx, name):
+                return getattr(ctx, name)
+            else:
+                ctxstr = shorten(repr(ctx), 128)
+                raise ValueError("Object not found: %s in %s" % (name, ctxstr,))
     else:
-        next_context = get_object(data[0], _context)
-        return get_object(data[1], next_context)
+        nextctx = get_object(elts[0], ctx)
+        return get_object(elts[1], nextctx)
 
 
 # autopep8: off

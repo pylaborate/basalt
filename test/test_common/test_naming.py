@@ -186,7 +186,20 @@ def test_origin_name(mock_module):
 
 @mark.dependency(depends=["test_get_module"])
 def test_get_object():
-    ## test for the relative name of an object in builtins
-    assert_that(subject.get_object("print", "builtins")).is_in(print)
-    ## test for the name of a module
+    ## test for finding an object within the builtins module
+    assert_that(subject.get_object("print", subject.get_module("builtins"))).is_in(print)
+    ## test for the name of a module, starting at the "None" context
     assert_that(subject.get_object(subject.__name__)).is_in(subject)
+    ## test for a search within a mapping
+    # fmt: off
+    refmap = {
+        "a": "A",
+        "b": {
+            "1": "B01",
+            "2": {
+                "c": 5
+            }
+        }
+    }
+    # fmt: on
+    assert_that(subject.get_object("b.2.c", refmap)).is_equal_to(5)
