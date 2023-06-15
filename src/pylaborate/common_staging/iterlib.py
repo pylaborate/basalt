@@ -2,7 +2,7 @@
 """Iterator utilities"""
 
 from .naming import export, export_annotated
-from typing import Generator, Iterator
+from typing import Generator, Iterator, Mapping
 from typing_extensions import TypeAlias, TypeVar
 
 
@@ -72,8 +72,9 @@ def nth_gen(source: Iterator[T], n: int) -> Yields[T]:
 
     ## Exceptions
 
-    - raises `NoValue` if `n` is greater than the number of elements
-      yielded from the source, or if the source yields no value
+    - raises `NoValue` if `n` is greater than the number of
+      elements yielded from the source, or if the source yields
+      no value
 
     ## Known Limitations
 
@@ -113,10 +114,43 @@ def nth(source: Iterator[T], n: int) -> T:
         return elt
 
 
+def merge_map(dest_mapping: Mapping, mapping: Mapping):
+    """merge a source `mapping` into a `dest_mapping`
+
+    ## Usage
+
+    `dest_mapping`, `mapping`
+    : a `Mapping` object. The `dest_mapping` must not be
+      an immutable `Mapping`
+
+    Returns the updated `dest_mapping`
+
+    ## Overview
+
+    `merge_map()` operates similar to `dict.update()`,
+    though ensuring that any mapping values in the input
+    `mapping` will be updated onto any corresponding map
+    within the `dest_mapping`.
+
+    In the case of a diferent type of value under a key
+    existing in both mappings, similar to `dict.update()`
+    the value from the input `mapping` will override.
+    """
+    for key, value in mapping.items():
+        if isinstance(value, Mapping):
+            if key in dest_mapping:
+                dest = dest_mapping[key]
+                if isinstance(dest, Mapping):
+                    merge_map(dest_mapping[key], value)
+                    continue
+        dest_mapping[key] = value
+    return dest_mapping
+
+
 # autopep8: off
 # fmt: off
 __all__ = []
-export(__name__, NoValue, first_gen, first, last_gen, last, nth_gen, nth)
+export(__name__, NoValue, first_gen, first, last_gen, last, nth_gen, nth, merge_map)
 
 ## export any TypeAlias values:
 export_annotated(__name__)

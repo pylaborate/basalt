@@ -4,7 +4,7 @@
 
 import asyncio as aio
 from contextlib import contextmanager
-from .naming import export
+from .naming import export, export_annotated
 from typing import abstractmethod, Callable, Optional, Union
 from typing_extensions import Annotated, Any, TypeAlias, ContextManager, Protocol
 
@@ -185,8 +185,8 @@ def call_sync(
                 return
             future.set_result(rslt)
 
-
+# autopep8: off
+# fmt: off
 __all__ = []
-export(
-    __name__, __all__, "TimeoutArg", LockType, lock_context, identity_context, call_sync
-)
+export(__name__, LockType, lock_context, identity_context, call_sync)
+export_annotated(__name__)

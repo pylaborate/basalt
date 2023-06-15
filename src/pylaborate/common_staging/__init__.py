@@ -27,3 +27,9 @@ export(__name__, module_all(__name__ + ".io"))  # NOQA: F405
 
 from .iterlib import *  # NOQA E402
 export(__name__, module_all(__name__ + ".iterlib"))  # NOQA: F405
+
+from .meta import *  # NOQA E402
+export(__name__, module_all(__name__ + ".meta"))  # NOQA: F405
+
+from .loglib import *  # NOQA E402
+export(__name__, module_all(__name__ + ".loglib"))  # NOQA: F405

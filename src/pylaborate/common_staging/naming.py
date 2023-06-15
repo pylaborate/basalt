@@ -109,7 +109,9 @@ def export(module: ModuleArg, obj, *objects) -> Sequence[str]:
 
     ## See Also
 
-    - `export_enum`
+    - `export_enum()`
+    - `export_annotated()`
+    - `module_all()`
 
     ## Examples
 
@@ -165,14 +167,17 @@ def export(module: ModuleArg, obj, *objects) -> Sequence[str]:
         m.__all__ = v_all
         return v_all
     except NameError as exc:
-        raise ValueError(f"Unable to export symbols from {m!r}", m) from exc
+        raise ValueError(f"Unable to export symbols from {m.__name__!s}", m) from exc
 
 
 T = TypeVar("T")
 
 
 def module_all(
-    module: ModuleArg, default: Optional[T] = None
+    # fmt: off
+    module: ModuleArg,
+    default: Optional[T] = None
+    # fmt: on
 ) -> Optional[Union[List[str], T]]:
     """retrieve the value of the `__all__` attribute of a module, if defined.
 
@@ -203,8 +208,17 @@ def module_all(
 def bind_enum(enum: Enum, module: ModuleArg):
     """bind the member values of an enum class as constants within a module
 
+    For each enum member field of the `enum`, with a field name of a
+    form `<name>`, this function will bind an attribute `<name>` to the
+    value of that `enum` field, within the denoted `module`.
+
+    ## Implementation Notes
+
+    - This function uses the value of each enum member field, for the
+      top-level binding in the module
+
     See Also
-    - `export_enum`
+    - `export_enum()`
     """
     ## may be useful for a @global_enum
     m = get_module(module)
@@ -217,38 +231,53 @@ def bind_enum(enum: Enum, module: ModuleArg):
 def export_enum(enum: Enum, module: ModuleArg) -> Sequence[str]:
     """bind and export the member values of an enum class within a module
 
-    For each member field of the `enum`, with the field name
-    of a form `<name>`, this function will bind an attribute
-    `<name>` as the value of that `enum` field, within the
-    denoted `module`.
+    For each enum member field of the `enum`, with a field name of a
+    form `<name>`, this function will bind an attribute `<name>` to the
+    value of that `enum` field, within the denoted `module`.
 
-    If the `enum` does not contain an element with a name
-    in the form of `<name>_T`, this function will also bind
-    the attribute `<name>_T` to the `enum` member field,
-    for the denoted `<name>`.
-
-    Lastly, this function will export each `<name>` and
-    `<name>_T` value and the name of the `enum` class, within
-    the `__all__` attribute of the denoted `module`
-
-    The return value will comprise a sequence of attribute
-    names, for attributes exported from the denoted module.
+    Lastly, this function will export each `<name>` and and the name of
+    the `enum` class, within the `__all__` attribute of the denoted
+    `module`
 
     ## Implementation Notes
 
-    - If the module does not define an `__all__` attribute
-      at time of call, a new `__all__` attribute will be
-      initialized, as of a type `List`
+    - If the module does not define an `__all__` attribute at time of
+      call, a new `__all__` attribute will be initialized, of a type
+      `List`
+
+    - This function uses the value of each enum member field, for the
+      top-level binding in the module
 
     ## See Also
 
-    - `export`
-    - `bind_enum`
+    - `export()`
+    - `bind_enum()`
     """
     m = get_module(module)
     bind_enum(enum, module)
     names = enum.__members__.keys()
     return export(m, enum.__name__, *names)
+
+
+def export_annotated(module: ModuleArg) -> Optional[Sequence[str]]:
+    '''export any annotated name from a module
+
+    ## Usage
+
+    For each `TypeAlias` name, or other annotation name defined in the
+    denoted `module`, ensures that the name is present within the value
+    of the `__all__` attribute of the module.
+
+    ## See also
+
+    - `export()`
+    - `export_enum()`
+    '''
+
+    m = get_module(module)
+    if hasattr(m, "__annotations__"):
+        return export(m, tuple(m.__annotations__.keys()))
+
 
 def origin_name(object) -> str:
     if hasattr(object, "__name__"):
@@ -266,6 +295,7 @@ def origin_name(object) -> str:
         raise ValueError("Object does not provide a __name__: %s" % repr(object), object)
 
 def get_object(name: str, context: Any = sys.modules) -> Any:
+    ## tentative utility function
     _context = context
     if isinstance(context, str):
         _context = get_module(context)

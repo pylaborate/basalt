@@ -3,7 +3,9 @@
 from assertpy import assert_that
 from pytest import fixture, mark
 
-import pylaborate.common_staging.iterlib.util as subject
+from typing import Mapping
+
+import pylaborate.common_staging.iterlib as subject
 
 
 @fixture
@@ -100,3 +102,59 @@ def test_nth_fail_no_value(empty_range):
 @mark.dependency(depends=["test_nth"])
 def test_nth_fail_exceeded(n_range, count):
     assert_that(subject.nth).raises(subject.NoValue).when_called_with(n_range, count)
+
+##
+## other tests
+##
+
+def validate_map(rslt, dest, input):
+    validated_keys = []
+    if input is not None:
+        for key in input:
+            assert_that(key in rslt).is_true()
+            in_value = input[key]
+            out_value = rslt[key]
+            assert_that(out_value.__class__).is_equal_to(in_value.__class__)
+            if isinstance(out_value, Mapping):
+                dest_value = dest[key] if key in dest else None
+                validate_map(out_value, dest_value, in_value)
+            else:
+                assert_that(out_value).is_equal_to(in_value)
+            validated_keys.append(key)
+    if dest is None:
+        return
+    for key in set(dest.keys()).difference(set(validated_keys)):
+        assert_that(key in rslt).is_true()
+        dest_value = dest[key]
+        out_value = rslt[key]
+        assert_that(out_value.__class__).is_equal_to(dest_value.__class__)
+        if isinstance(out_value, Mapping):
+            validate_map(out_value, dest_value, None)
+        else:
+            assert_that(out_value).is_equal_to(dest_value)
+
+
+def test_merge_map():
+    m1 = dict(
+        a = 1,
+        b = dict(
+            b1 = "b1",
+            b2 = "b2"
+        ),
+        d = -1,
+        e = dict(
+            e1 = "e1"
+        )
+    )
+    m2 = dict(
+        b = dict(
+            b1 = "b1_m2"
+        ),
+        c = 1,
+        d = dict(
+            d1 = "d1"
+        )
+    )
+    rslt = subject.merge_map(m1, m2)
+    validate_map(rslt, m1, m2)
+
