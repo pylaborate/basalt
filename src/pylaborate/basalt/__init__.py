@@ -23,9 +23,12 @@ import signal as nsig
 import sys
 import threading
 import traceback
+
+
 from types import FrameType, MappingProxyType, ModuleType, TracebackType
-from typing import Any, Callable, Generic, Generator, List, Literal, Mapping, Optional, Protocol, Sequence, Tuple, Union
-from typing_extensions import Self, Type, TypeVar, TypeVarTuple
+from typing import Any, Generic, List, Literal, Optional, Protocol, Tuple, Union
+from typing_extensions import Self, Type, TypeAlias, TypeVar
+from collections.abc import Callable, Generator, Sequence, Mapping
 
 
 T = TypeVar("T")
@@ -375,8 +378,13 @@ class TaskProxyBase(Generic[Tsk, T]):
             elif arg == 'env':
                 use_args[arg] = env
             elif arg == 'sh':
-                ## for integration with shellous
-                use_args[arg] = self.receiver.shell_context
+                ## a convention added in Basalt, for integration with shellous
+                ##
+                ## create a new shell context mapped to this worker's run future.
+                ## for async tasks, the 'sh' value can be used for running any
+                ## zero or more subprocesses
+                use_args[arg] = dataclasses.replace(self.receiver.shell_context,
+                                                    task_proxy = self)
             elif arg == 'future':
                 ## for cancellable 'sh' handling
                 use_args[arg] = self.run_future
@@ -1031,21 +1039,33 @@ class ShellCommandFailed(Exception):
     pass
 
 class ShellRunner(shellous.Runner):
-    async def run_command(command, _run_future = None):
-        prefix = ""
-        inst = None
-        try:
-            inst = command.manager if isinstance(command, ShellCommand) else Basalt.instance
-        except UnboundValue:
-            pass
-        if (inst and inst.shell_show_commands):
-            prefix = os.getenv("PS4", "+ ")
-            print(prefix + shlex.join(command.args))
-        try:
-            return await shellous.Runner.run_command(command, _run_future = _run_future)
-        except Exception as exc:
-            raise ShellCommandFailed() from exc
+    async def run_command(command, _run_future = None, proxy: "Optional[TaskWorkerBase]" = None):
+        mgr = None
+        task = None
+        rfuture = _run_future
+        if isinstance(command, ShellCommand):
+            ## retrieve task worker information from the cmd, if not provided
+            proxy = proxy if proxy else command.task_proxy
+            mgr = proxy.receiver if proxy else None
+            if not rfuture:
+                rfuture = proxy.run_future
+            if mgr.shell_show_commands:
+                task = proxy.task
+                prefix = os.getenv("PS4", "+ ")
+                print(prefix + shlex.join(command.args))
 
+        try:
+            return await shellous.Runner.run_command(command, _run_future = rfuture)
+        except Exception as exc:
+            if mgr:
+                ## try to capture a stack summary indicating the failure point.
+                ##
+                ## this uses a sort of virtual exception, for the exception info,
+                ## also folding the original exception from presentation at end of main
+                show_stack = traceback.extract_stack()[:-1]
+                mgr.fold_exception(exc.args, task, ShellCommandFailed, command.args, show_stack)
+            ## ensure that the exception is raised in the task func
+            raise
 
 @dataclass(frozen = True)
 class ShellResult(shellous.Result):
@@ -1057,11 +1077,11 @@ R = TypeVar("R", bound = ShellResult)
 @dataclass(frozen = True)
 class ShellCommand(shellous.Command[R]):
 
-    manager: "Optional[Basalt]"
-    future: Optional[FutureType]
+    task_proxy: Optional[TaskWorkerBase] = None
 
     def coro(self, _run_future = None):
-        future = _run_future if _run_future else self.future
+        ## compatible with the syntax for shellous.Command.coro()
+        future = _run_future if _run_future else self.task_proxy.run_future if self.task_proxy else None
         return ShellRunner.run_command(self, _run_future = future)
 
 @dataclass(frozen = True)
@@ -1073,26 +1093,33 @@ class ShellContext(shellous.CmdContext[R]):
     ##
     manager: "Optional[Basalt]" = None
     ## ^ local back-reference to the Basalt instance
+    task_proxy: Optional[TaskWorkerBase] = None
 
     ## used during __call__, may provide one point of extension
     shell_command_class: Type[shellous.Command] = ShellCommand
 
     ## utility field, referencing an enum class in shellous
     Redirect: Type[shellous.redirect.Redirect] = Redirect
+    def __call__(self, *args, stdout = Redirect.INHERIT, stderr = Redirect.INHERIT, stdin = Redirect.INHERIT, **kwargs) -> shellous.Command[R]:
 
-    def __call__(self, *args, future: Optional[FutureType] = None, stdout = Redirect.DEFAULT, stderr = sys.stderr, stdin = None,**kwargs) -> shellous.Command[R]:
-        self.manager.logger.log(LogLevel.TRACE, "new shell context call (%s): %s", self.__class__.__qualname__, args)
+        # fmt: off
+        self.manager.logger.log(LogLevel.TRACE, "%s: new shell call: %s",
+                                self.__class__.__name__, args)
+        # fmt: on
 
-        inst = self
-        inst = inst.stdout(stdout if stdout else Redirect.DEVNULL)
-        inst = inst.stderr(stderr if stderr else Redirect.DEVNULL)
-        inst = inst.stdin(stdin if stdin else Redirect.DEVNULL)
 
-        if len(kwargs) is not int(0):
-            inst = inst.set(**kwargs)
+        # fmt: off
+        options = dataclasses.replace(
+            self.options,
+            output = stdout if stdout else Redirect.DEVNULL,
+            error = stderr if stderr else Redirect.DEVNULL,
+            input = stdin if stdin else Redirect.DEVNULL,
+            **kwargs
+        )
+        # fmt: on
 
         cls = self.shell_command_class
-        return cls(shellous.command.coerce(args), future = future, manager = self.manager, options = inst.options)
+        return cls(shellous.command.coerce(args), task_proxy = self.task_proxy, options = options)
 
 
 
@@ -1169,6 +1196,9 @@ class Basalt(Cmdline):
 
         self._runner = None
         self._exceptions = None
+        self._n_exceptions = 0
+        self._exceptions = queue.SimpleQueue()
+        self._fold_exceptions = []
 
     @classmethod
     def init_argparser(cls, instance: Self):
@@ -1294,42 +1324,84 @@ class Basalt(Cmdline):
                 yield dep
                 state.append(dep)
 
+    def fold_exception(
+            # fmt: off
+            self, folded,
+            task: Optional[tasks.Task], show_type: Type, show_args, show_tbk
+            # fmt: on
+    ):
+        # applied towards an alternate presentation of traceback information,
+        # for failed shell commands under local shellous context
+        self._fold_exceptions.append(hash(folded))
+        self.push_exception_info(task, show_type, show_args, show_tbk)
+
     def push_exception_info(
             # fmt: off
-            self,
-            task: Optional[tasks.Task],
-            exc_type: Optional[Type],
-            exc_args: Optional[Union[Sequence, Exception]],
-            tbk: Optional[Sequence] = None
+            self, task: Optional[tasks.Task], exc_type: Type,
+            exc_args, tbk
             # fmt: on
     ):
         ## store exception information
         ##
-        ## The presentation of the exception information will be deferred until before
-        ## return in Basalt.main()
-        ##
-        ## Stored values may be accessed with each_exception(), a reentrant function
+        ## Stored values can be retrieved with each_exception()
         ##
         ## If `task` is null, the exception information will be interpreted
         ## as applying directly to the Basalt runtime. Else, the exception
         ## information will be interpreted relative to the denoted task.
         ##
         ## The traceback, if provided, will be displayed under the cmdline args
-        ## -t/--propagate-exceptions
-        emap = self._exceptions
-        if not emap:
-            emap = dict()
-            self._exceptions = emap
-        token = hash((task, exc_type, exc_args,))
-        if token not in emap:
-            emap[token] = (task, exc_type, exc_args, tbk)
+        ## -t/--propagate-traceback
+        arghash = hash(exc_args)
+        if arghash in self._fold_exceptions:
+            # each exception in  _fold_exceptions is ignored, at most, once
+            #
+            # this value should always be accessed exclusively within the
+            # same thread as in which the hashed arg was added to
+            # _fold_exceptions
+            #
+            # _fold_exceptions should be empty at end of run
+            #
+            # This is used primarily for presenting alternate backtrace
+            # information, for an exception from a shell command returning
+            # non-zero, under shellous. In this instance, the backtrace from
+            # the ignored exception may usually not indicate the origin of
+            # the call to the failed shell command, but rather the source
+            # location where the exception was raised from. Though ignored
+            # here, the exception should nonetheless have been raised
+            # within the calling function.
+            #
+            # In this instance, an alternate presentation for the exception
+            # data would already have been added, with a stack trace generally
+            # indicating the source location of the call into shellous.
+            #
+            self._fold_exceptions.remove(arghash)
+        else:
+            data = (task, exc_type, exc_args, tbk,)
+            self._exceptions.put(data)
+            self._n_exceptions = self._n_exceptions + 1
 
     def each_exception(self) -> Generator[Tuple[tasks.Task, type, Tuple, Optional[List]], None, None]:
-        emap = self._exceptions
-        if emap:
-            for data in emap.values():
-                yield data
-
+        ## yields: task, exception type, exception args, traceback,
+        ##
+        ## removes each successive entry from the queue
+        ##
+        ## Syntax of return values:
+        ##
+        ## The task arg may be None, if the exception was stored without
+        ## a task context.
+        ##
+        ## The traceback value may represent one of:
+        ## - a traceback object
+        ## - a list in the format of a stack trace
+        ## - the value None, if a traceback was not available.
+        ##
+        ## The exception type and exception args should generally not be None
+        ##
+        try:
+            while True:
+                yield self._exceptions.get_nowait()
+        except queue.Empty:
+            return
 
     def find_task(self, task: Union[str, tasks.Task]) -> tasks.Task:
         if isinstance(task, tasks.Task):
@@ -1669,7 +1741,14 @@ class Basalt(Cmdline):
         ## process any deferred exception info
         ##
 
-        show_tbk = self.option_namespace.propagate_traceback
+        show_tbk = self.option_namespace.show_traceback
+        self.logger.debug("main: exception count: %d", self._n_exceptions)
+        # fmt: off
+        self.logger.log(LogLevel.TRACE,
+                        "main: folded exception count: %d",
+                        len(self._fold_exceptions))
+        # fmt: on
+
         for datum in self.each_exception():
             (task, etype, eargs, etbk) = datum
             rc = rc + 1 if rc < 256 else rc
