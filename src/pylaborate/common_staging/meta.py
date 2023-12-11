@@ -1,13 +1,11 @@
-## meta.py - pylaborate.common_staging
 '''utilities for metaprogramming'''
 
 from collections.abc import Iterable
-from typing import Sequence, Type
 from .iterlib import Yields
 from .naming import export
 
 
-def merge_mro(bases: Sequence[Type]) -> Yields[Type]:
+def merge_mro(bases: Iterable[type]) -> Yields[type]:
     '''utility for predicting a method resolution order
 
     ## Usage
@@ -16,35 +14,33 @@ def merge_mro(bases: Sequence[Type]) -> Yields[Type]:
     for a class being initialized, given an unordered sequence of the
     class' base classes.
 
-    Usage examples may include:
+    Usage Examples / Design Notes:
 
     - Given the set of base classes for a class providing a conventional
-      method resolution order under `type.__new__()`: Ordered processing
-      for annotations, attributes, and other qualities of each class
-      that will be present within the class' method resolution order
+      method resolution order under `type.__new__()`: `merge_mro()` may
+      be applied for an ordered processing in definitions of annotations,
+      attributes, and other qualities of each class in the eventual MRO
+      for a new class
 
     - Producing an ordered set of applicable classes for a polymorphic
-      application of a given function `f(a)` with precedence determined
-      per the method resolution order of the class of the parameter `a`,
-      given an ordered set of classes for `a` as supported under the
-      function's polymorphic definition.
+      application of a function `f(a)` with precedence determined
+      per the method resolution order of the class of the value `a`,
+      beginning with an ordered set of the base classes for the class `a`
 
     ## Known Limitations
 
     This function is believed to be consistent with the method
-    resolution order of every defined class.
+    resolution order for conventional Python type definitions,
+    vis a vis type.mro()
     '''
     ##
     found = []
-    if __debug__ and not isinstance(bases, Iterable):
-        raise AssertionError("Not an iterable value", bases)
     for cls in bases:
         for mrocls in cls.__mro__:
             if mrocls in found:
                 found.remove(mrocls)
             found.append(mrocls)
-    for cls in found:
-        yield cls
+    yield from found
 
 # autopep8: off
 # fmt: off
