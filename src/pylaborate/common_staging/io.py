@@ -1,12 +1,12 @@
-## io.py
-'''Utilities for stream I/O'''
+'''Type definitions for I/O'''
 
+import os
 from pathlib import Path
-from typing import Union
-from typing_extensions import Annotated, TypeAlias
+from typing import Annotated, Union
+from typing_extensions import TypeAlias
 
+PathArg: Annotated[
+    TypeAlias, "Generalized filesystem pathname type"
+] = Union[str, Path, os.PathLike]
 
-PathArg: Annotated[TypeAlias, "Generalized filesystem pathname indicator"] = Union[str, Path]
-
-
-__all__ = ['PathArg']
+__all__ = ("PathArg",)
