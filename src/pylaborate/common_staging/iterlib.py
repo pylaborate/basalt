@@ -1,8 +1,14 @@
-## iterlib - pylaborate.common_staging
 """Iterator utilities"""
 
-from .naming import export, export_annotated
-from typing import Generator, Iterator, Mapping
+import inspect
+from itertools import chain
+
+from .naming import export
+
+from typing import (
+    AsyncGenerator, Callable, Generator, Iterator,
+    Optional, Iterable, Mapping, Union
+)
 from typing_extensions import TypeAlias, TypeVar
 
 
@@ -10,147 +16,218 @@ T = TypeVar("T")
 
 
 Yields: TypeAlias = Generator[T, None, None]
+AsyncYields: TypeAlias = AsyncGenerator[T, None]
 
 
-class NoValue(ValueError):
-    """ValueError indicating a value was expected,
-    though no value was accessed"""
+def ensure_gen(iter: Iterable[T]) -> Yields[T]:
+    """Return a generator for an iterable object
 
-    pass
+    If `iter` is a generator, returns `iter`
 
+    If `iter` is an Iterator, returns a generator onto `iter`
 
-def first_gen(source: Iterator[T]) -> Yields[T]:
-    """yields the first element of an iterator
+    Lastly, returns a generator onto a chained iterator for `iter`
 
-    ## Exceptions
-
-    - raises `NoValue` if the source yields no value
+    In the second and third cases, the generator will yield
+    each successive element of `iter`
     """
-    for elt in source:
-        yield elt
-        return
-    raise NoValue("Source yielded no value", source)
+    if inspect.isgenerator(iter):
+        return iter
+    elif isinstance(iter, Iterator):
+        return (elt for elt in iter)
+    else:
+        return (elt for elt in chain(iter))
 
 
-def first(source: Iterator[T]) -> T:
-    """returns the first element of an iterator"""
-    for elt in first_gen(source):
-        return elt
+def first_gen(source: Yields[T]) -> Yields[T]:
+    """yield the first value from a generator
+
+    ### Exceptions
+
+    raises StopIteration if the source yields no value
+    """
+    yield next(source)
 
 
-def last_gen(source: Iterator[T]) -> Yields[T]:
-    """yields the last element from an iterator
+def first(source: Iterable[T]) -> T:
+    """return the first value from an iterable object
 
-    ## Exceptions
+    ### Exceptions
 
-    - raises `NoValue` if the source yields no value
+    raises RuntimeError if the source yields no value"""
+    return next(first_gen(ensure_gen(source)))
+
+
+def last_gen(source: Iterable[T]) -> Yields[T]:
+    """yield the last value from a generator
+
+    ### Exceptions
+
+    raises StopIteration if the source yields no value
     """
     elt = None
     found = None
-    for eltv in source:
-        elt = eltv
-        found = True
-    if found is None:
-        raise NoValue("Source yielded no value", source)
-    else:
-        yield elt
+    while True:
+        try:
+            elt = next(source)
+            found = True
+        except StopIteration:
+            if found is None:
+                raise
+            else:
+                yield elt
+                return
 
 
-def last(source: Iterator[T]) -> T:
-    """returns the last element from an iterator
+def last(source: Iterable[T]) -> T:
+    """return the last value from an iterable object
 
-    ## Exceptions
+    ### Exceptions
 
-    - raises `NoValue` if the source yields no value
+    raises RuntimeError if the source yields no value
     """
-    for elt in last_gen(source):
-        return elt
+    return next(last_gen(ensure_gen(source)))
 
 
-def nth_gen(source: Iterator[T], n: int) -> Yields[T]:
-    """yields the nth element from an iterator
+def nth_gen(n: int, source: Yields[T]) -> Yields[T]:
+    """yield the nth element yielded from a generator
 
-    ## Exceptions
+    ### Exceptions
 
-    - raises `NoValue` if `n` is greater than the number of
-      elements yielded from the source, or if the source yields
-      no value
+    raises `StopIteration` if `n` is greater than
+    the number of values yielded from `source`
 
-    ## Known Limitations
+    ### Known Limitations
 
-    - Negative index values are not supported, at this time
+    Negative index values are not supported
     """
-    counted = 0
     s = abs(int(n))
     if s != n:
         raise TypeError("Unsupported index value", n)
-    for elt in source:
-        if counted == s:
-            yield elt
-            return
-        else:
-            counted = counted + 1
-    if counted is int(0):
-        raise NoValue("Source yielded no value", source)
-    else:
-        # fmt: off
-        raise NoValue("Count exceeded number of source elements",
-                      n, counted, source)
-        # fmt: on
+    for idx in range(0, s):
+        next(source)
+    yield next(source)
 
 
-def nth(source: Iterator[T], n: int) -> T:
-    """returns the nth element from an iterator
+def nth(n: int, source: Iterable[T]) -> T:
+    """return the nth element from an iterable object
 
-    ## Exceptions
+    ### Exceptions
 
-    - raises `NoValue` if the source yields no value
+    raises RuntimeError if `n` is greater than the
+    number of values yielded from `source`
 
-    ## Known Limitations
+    ### Known Limitations
 
-    - Negative index values are not supported, at this time
+    Negative index values are not supported
     """
-    for elt in nth_gen(source, n):
-        return elt
+    return next(nth_gen(n, ensure_gen(source)))
 
 
-def merge_map(dest_mapping: Mapping, mapping: Mapping):
-    """merge a source `mapping` into a `dest_mapping`
+T_k = TypeVar("T_k")
+T_v = TypeVar("T_v")
 
-    ## Usage
 
-    `dest_mapping`, `mapping`
-    : a `Mapping` object. The `dest_mapping` must not be
-      an immutable `Mapping`
+def merge_map(source: Mapping[T_k, T_v],
+              dest: Mapping[T_k, T_v],
+              callback: Optional[Callable[
+                  [T_k, T_v, Union[T_v, None], bool], T_v]] = None
+              ):
+    """merge a `source` mapping into a `dest`
+
+    ### Usage
+
+    `source`, `dest`
+    : A `Mapping` object. The `dest`
+    must not be immutable.
+
+    `callback`
+    : Optional function for merging values from the
+    `source` mapping and, if present, from the `dest`
+    mapping
 
     Returns the updated `dest_mapping`
 
-    ## Overview
+    ### Overview
 
     `merge_map()` operates similar to `dict.update()`,
-    though ensuring that any mapping values in the input
-    `mapping` will be updated onto any corresponding map
-    within the `dest_mapping`.
+    with the following additional goals:
+    - Ensure that any mapping values in the mapping
+     `source` will be merged onto any corresponding
+      mapping within the `dest` mapping.
+    - Accept an optional callback for determing other
+      values to be applied to the `dest` mapping.
 
-    In the case of a diferent type of value under a key
-    existing in both mappings, similar to `dict.update()`
-    the value from the input `mapping` will override.
+    If a callback is provided, the callback must accept
+    four positional args:
+    - A key object from the `source` mapping.
+    - The value for the key, from the `source` mapping.
+    - The value for the hash-equivalent key from the `dest`
+      mapping, or None if the `dest` mapping contains no value
+      for that key.
+    - A boolean flag, indicating whether the `dest` mapping
+      contains a value for that key.
+
+    The value returned from the callback will then be applied
+    as the value for the hash-equivalent key in the `dest` mapping.
+
+    If no callback is provided: Except for any common mapping
+    values merged under the `source` and `dest` mappings, then
+    similar to `dict.update()` the value from the `source` mapping
+    will override.
+
+    ### Known Limitations
+
+    In all instances: For each mapping value in `source`,
+    if a corresponding mapping exists for that key in
+    `dest`,  then `merge_map()` will recursively merge
+    the  mapping objects, given any provided callback.
+    The mapping under `dest` will be modified in  the
+    merge. If no  mapping exists for that key in `dest`,
+    then the value returned from any `callback` would
+    be applied to `dest`. If no callback is provided,
+    the mapping from the `source` would be applied
+    directly, without copy.
+
+    If a callback is provided, the callback will be
+    called for all Mapping objects from the `source`
+    not  existing in `dest`, and for all non-mapping
+    objects, whether or not common to `source` and
+    `dest`. The callback may copy or re-use any values
+    from the `source` and if available, from the `dest`
+    mapping.
+
+    If no callback is provided, this would not merge
+    any non-mapping values for common keys of `source`
+    and `dest`.  The value from the  `source`  would
+    ovewrite the value for any hash-equivalent key
+    in the `dest` mapping.
+
+    In all instances:
+
+    `merge_map()` assumes that all common mapping
+    objects are mutable in the `dest` mapping.
+
+    `merge_map()` will not detect any reference loop
+    for values under the `source` mapping.
     """
-    for key, value in mapping.items():
-        if isinstance(value, Mapping):
-            if key in dest_mapping:
-                dest = dest_mapping[key]
-                if isinstance(dest, Mapping):
-                    merge_map(dest_mapping[key], value)
-                    continue
-        dest_mapping[key] = value
-    return dest_mapping
+    not_found = object()
+    for key, value in source.items():
+        dvalue = dest.get(key, not_found)
+        if isinstance(value, Mapping) and dvalue is not not_found and isinstance(dvalue, Mapping):
+            merge_map(value, dvalue, callback)
+            continue
+        if callback is None:
+            dest[key] = value
+        elif dvalue is not_found:
+            dest[key] = callback(key, value, None, False)
+        else:
+            dest[key] = callback(key, value, dvalue, True)
+    del not_found
+    return dest
 
 
 # autopep8: off
 # fmt: off
-__all__ = []
-export(__name__, NoValue, first_gen, first, last_gen, last, nth_gen, nth, merge_map)
-
-## export any TypeAlias values:
-export_annotated(__name__)
+__all__ = ["Yields",  "AsyncYields"]
+export(__name__, ensure_gen, first_gen, first, last_gen, last, nth_gen, nth, merge_map)
