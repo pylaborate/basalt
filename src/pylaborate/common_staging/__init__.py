@@ -19,9 +19,6 @@ export(__name__, module_all(__name__ + ".naming"))  # NOQA: F405
 from .colib import *   # NOQA E402
 export(__name__, module_all(__name__ + ".colib"))  # NOQA: F405
 
-from .aio import *  # NOQA E402
-export(__name__, module_all(__name__ + ".aio"))  # NOQA: F405
-
 from .io import *  # NOQA E402
 export(__name__, module_all(__name__ + ".io"))  # NOQA: F405
 
